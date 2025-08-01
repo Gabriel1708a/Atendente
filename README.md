@@ -75,18 +75,23 @@ O bot se conectará automaticamente usando a sessão salva, sem necessidade de Q
 ### Testando o Bot
 
 1. Envie "**oi**" ou "**menu**" para o número conectado
-2. O bot responderá com um menu interativo
-3. Clique nos botões:
-   - **Suporte 🌐**: Direciona para atendimento humano
-   - **Informações Bot 🤖**: Mostra detalhes técnicos
+2. O bot tentará enviar menu interativo (com fallback automático):
+   - **Lista Interativa** (mais moderna)
+   - **Botões Tradicionais** (se lista falhar)
+   - **Menu Numerado** (fallback final)
+3. Interaja com as opções:
+   - **Suporte 🌐** ou digite **1**: Direciona para atendimento humano
+   - **Informações Bot 🤖** ou digite **2**: Mostra detalhes técnicos
 
 ## 🎯 Comandos Disponíveis
 
 | Comando | Descrição |
 |---------|-----------|
-| `oi` ou `menu` | Exibe menu principal com botões |
-| Botão "Suporte 🌐" | Informações de contato do suporte |
-| Botão "Informações Bot 🤖" | Detalhes técnicos do bot |
+| `oi` ou `menu` | Exibe menu principal interativo |
+| `1` | Acesso rápido ao suporte |
+| `2` | Acesso rápido às informações do bot |
+| Botão/Lista "Suporte 🌐" | Informações de contato do suporte |
+| Botão/Lista "Informações Bot 🤖" | Detalhes técnicos do bot |
 
 ## ⚙️ Personalização
 
@@ -125,8 +130,9 @@ npm run dev   # Executa com nodemon (reinicia automaticamente)
 - Tente remover a pasta `session/baileys_auth_info` e refazer QR
 
 ### Botões não funcionam
-- Alguns clientes WhatsApp podem não suportar botões
-- O bot possui fallback para texto simples
+- O bot usa sistema de fallback automático: Lista → Botões → Números
+- Se nenhum funcionar, digite números (1 ou 2) diretamente
+- Todos os clientes WhatsApp suportam o modo numerado
 
 ### Erro de dependências
 ```bash
