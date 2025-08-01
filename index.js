@@ -165,12 +165,12 @@ class WhatsAppBot {
     }
 
     /**
-     * Exibe QR Code customizado no terminal
+     * Exibe QR Code customizado no terminal (SEM LIMPAR)
      * @param {string} qr - String do QR code
      */
     displayCustomQR(qr) {
-        console.clear();
-        console.log('┌────────────────────────────────────────────────────────────┐');
+        // NÃO limpa mais o terminal para manter QR visível
+        console.log('\n┌────────────────────────────────────────────────────────────┐');
         console.log('│                    🤖 BOT WHATSAPP                        │');
         console.log('│                   📱 ESCANEIE O QR CODE                   │');
         console.log('└────────────────────────────────────────────────────────────┘\n');
@@ -182,7 +182,8 @@ class WhatsAppBot {
         console.log('2️⃣  Toque em Menu > Dispositivos conectados');
         console.log('3️⃣  Toque em "Conectar um dispositivo"');
         console.log('4️⃣  Escaneie o código QR acima');
-        console.log('\n⏳ Aguardando escaneamento...\n');
+        console.log('\n⏳ Aguardando escaneamento...');
+        console.log('💡 O QR Code permanecerá visível até a conexão\n');
     }
 
     /**
@@ -196,8 +197,7 @@ class WhatsAppBot {
                 return;
             }
 
-            console.clear();
-            console.log('┌────────────────────────────────────────────────────────────┐');
+            console.log('\n┌────────────────────────────────────────────────────────────┐');
             console.log('│                 🤖 BOT WHATSAPP                           │');
             console.log('│               🔢 CÓDIGO DE PAREAMENTO                     │');
             console.log('└────────────────────────────────────────────────────────────┘\n');
@@ -233,8 +233,7 @@ class WhatsAppBot {
                 }
             }
             
-            console.clear();
-            console.log('┌────────────────────────────────────────────────────────────┐');
+            console.log('\n┌────────────────────────────────────────────────────────────┐');
             console.log('│                 ✅ CÓDIGO GERADO COM SUCESSO              │');
             console.log('└────────────────────────────────────────────────────────────┘\n');
             
@@ -368,8 +367,7 @@ class WhatsAppBot {
      * Trata conexão bem-sucedida
      */
     handleSuccessfulConnection() {
-        console.clear();
-        console.log('┌────────────────────────────────────────────────────────────┐');
+        console.log('\n┌────────────────────────────────────────────────────────────┐');
         console.log('│                    ✅ BOT CONECTADO!                       │');
         console.log('└────────────────────────────────────────────────────────────┘\n');
         

@@ -55,7 +55,12 @@ class VideoHandler {
             welcome: null,
             suporte: null,
             info_bot: null,
-            custom: []
+            custom: [],
+            captions: {
+                welcome: "🎥 *Vídeo de boas-vindas*",
+                suporte: "🎥 *Vídeo informativo sobre suporte*",
+                info_bot: "🎥 *Informações sobre o bot*"
+            }
         };
     }
 

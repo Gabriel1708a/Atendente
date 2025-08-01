@@ -59,6 +59,12 @@ class MessageHandler {
                     await this.sendWelcomeMenu(userNumber);
                     return;
                 }
+
+                // Verifica se é comando !gerenciar
+                if (messageText.toLowerCase().trim() === '!gerenciar') {
+                    await this.sendStepManagementMenu(userNumber);
+                    return;
+                }
                 
                 // Verifica se é resposta numérica (1, 2, etc.)
                 if (this.isNumericResponse(messageText)) {
@@ -138,9 +144,13 @@ class MessageHandler {
                 
                 if (fs.existsSync(videoPath)) {
                     await this.sendTypingEffect(userNumber, 1500);
+                    
+                    // Obtém legenda personalizada ou usa padrão
+                    const customCaption = this.videoHandler.videoConfig.captions?.[section] || `🎥 *Vídeo informativo*`;
+                    
                     await this.sock.sendMessage(userNumber, {
                         video: fs.readFileSync(videoPath),
-                        caption: `🎥 *Vídeo informativo*`
+                        caption: customCaption
                     });
                     console.log(`🎥 Vídeo ${section} enviado para ${userNumber}`);
                     return true;
@@ -242,6 +252,52 @@ _Digite 1 ou 2 para continuar_
     }
 
     /**
+     * Envia menu de gerenciamento de etapas
+     * @param {string} userNumber - Número do usuário
+     */
+    async sendStepManagementMenu(userNumber) {
+        try {
+            await this.sendTypingEffect(userNumber, 2000);
+            
+            // Carrega configuração atual de vídeos
+            const videoConfig = this.videoHandler.videoConfig;
+            
+            const menuMessage = `🔧 *GERENCIADOR DE ETAPAS*
+
+📋 *Etapas Disponíveis:*
+
+*1️⃣ Menu Principal (Boas-vindas)*
+${videoConfig.welcome ? '🎥 Com vídeo' : '📝 Apenas texto'}
+
+*2️⃣ Seção Suporte*
+${videoConfig.suporte ? '🎥 Com vídeo' : '📝 Apenas texto'}
+
+*3️⃣ Informações do Bot*
+${videoConfig.info_bot ? '🎥 Com vídeo' : '📝 Sem conteúdo'}
+
+*4️⃣ Seções Personalizadas*
+${videoConfig.custom && videoConfig.custom.length > 0 ? `📊 ${videoConfig.custom.length} seção(ões)` : '🆕 Nenhuma'}
+
+---
+
+*📝 COMANDOS DISPONÍVEIS:*
+• !editar [número] - Editar etapa
+• !criar - Criar nova etapa
+• !excluir [número] - Excluir etapa
+• !legenda [número] - Editar legenda do vídeo
+• !listar - Ver detalhes de todas etapas
+
+💡 *Exemplo:* !editar 3`;
+
+            await this.sock.sendMessage(userNumber, { text: menuMessage });
+            console.log(`✅ Menu de gerenciamento enviado para ${userNumber}`);
+
+        } catch (error) {
+            console.error('❌ Erro ao enviar menu de gerenciamento:', error);
+        }
+    }
+
+    /**
      * Processa resposta dos botões e listas
      * @param {string} userNumber - Número do usuário
      * @param {string} buttonId - ID do botão/opção clicado
@@ -279,34 +335,15 @@ Sábado: 08:00 às 12:00
                     break;
 
                 case 'info_bot':
-                    // Envia vídeo do bot se disponível
+                    // Envia apenas vídeo se disponível, sem texto automático
                     const sentBotVideo = await this.sendVideoIfAvailable(userNumber, 'info_bot');
                     if (sentBotVideo) {
-                        await new Promise(resolve => setTimeout(resolve, 1500));
-                        await this.sendTypingEffect(userNumber, 1500);
+                        // Se tem vídeo, envia só o vídeo com legenda personalizada
+                        return; // Não envia mais nada
+                    } else {
+                        // Se não tem vídeo, não envia nada (etapa vazia)
+                        responseMessage = `ℹ️ *Esta etapa está em configuração*\n\n🔧 Use o comando !gerenciar para configurar esta seção.`;
                     }
-                    
-                    responseMessage = `🤖 *Informações do Bot*
-
-📋 **Nome:** ${this.botInfo.name}
-🔢 **Versão:** ${this.botInfo.version}
-📝 **Descrição:** ${this.botInfo.description}
-
-🛠️ **Tecnologias:**
-• Node.js 18+
-• Baileys WhatsApp Library
-• Estrutura modular
-• Sistema de vídeos integrado
-
-💡 **Como usar:**
-• Digite "oi" ou "menu" - Exibe menu
-• Digite 1 ou 2 - Navegação rápida
-• Envie vídeo com "!uparvideo" - Adiciona vídeos
-
-🔧 **Status:** ✅ Online e funcionando
-
----
-🔄 _Digite "menu" a qualquer momento para voltar ao início_`;
                     break;
 
                 default:
