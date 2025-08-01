@@ -1,6 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
+// Importa função de download se necessário
+let downloadContentFromMessage;
+try {
+    ({ downloadContentFromMessage } = require('@whiskeysockets/baileys'));
+} catch (error) {
+    console.log('⚠️  downloadContentFromMessage não disponível como import direto');
+}
+
 /**
  * Handler para gerenciar vídeos do bot - comando !uparvideo
  */
@@ -73,7 +81,7 @@ class VideoHandler {
             if (!videoMessage) {
                 await this.sendTypingEffect(userNumber);
                 await this.sock.sendMessage(userNumber, {
-                    text: '❌ Comando !uparvideo deve ser enviado na legenda de um vídeo.\n\n💡 Envie um vídeo com a legenda "!uparvideo" para adicionar ao bot.'
+                    text: '❌ *Comando !uparvideo deve ser usado com vídeo*\n\n📋 *Como usar:*\n1️⃣ Selecione ou grave um vídeo\n2️⃣ Adicione "!uparvideo" na legenda\n3️⃣ Envie para o bot\n\n💡 *Dica:* O vídeo deve ter menos de 16MB'
                 });
                 return;
             }
@@ -85,7 +93,7 @@ class VideoHandler {
             if (!videoBuffer) {
                 await this.sendTypingEffect(userNumber);
                 await this.sock.sendMessage(userNumber, {
-                    text: '❌ Erro ao baixar o vídeo. Tente novamente.'
+                    text: '❌ *Erro ao baixar o vídeo*\n\n🔧 *Possíveis causas:*\n• Vídeo muito grande (limite ~16MB)\n• Formato não suportado\n• Problema de conectividade\n\n💡 *Soluções:*\n• Tente um vídeo menor\n• Use formato MP4\n• Verifique sua conexão'
                 });
                 return;
             }
@@ -115,10 +123,66 @@ class VideoHandler {
      */
     async downloadVideo(message) {
         try {
-            const stream = await this.sock.downloadMediaMessage(message);
-            return stream;
+            console.log('🔄 Tentando baixar vídeo...');
+            
+            // Verifica se a mensagem tem vídeo
+            const videoMessage = message.message.videoMessage;
+            if (!videoMessage) {
+                throw new Error('Mensagem não contém vídeo');
+            }
+            
+            console.log('📱 Vídeo detectado, iniciando download...');
+            
+            // Tenta diferentes métodos de download baseados na versão do Baileys
+            let buffer = null;
+            
+            // Método 1: downloadContentFromMessage (mais recente)
+            if (downloadContentFromMessage) {
+                console.log('🔄 Usando downloadContentFromMessage (import direto)...');
+                const stream = await downloadContentFromMessage(videoMessage, 'video');
+                
+                // Converte stream para buffer
+                const chunks = [];
+                for await (const chunk of stream) {
+                    chunks.push(chunk);
+                }
+                buffer = Buffer.concat(chunks);
+                console.log(`✅ Download concluído: ${buffer.length} bytes`);
+                
+            } else if (typeof this.sock.downloadContentFromMessage === 'function') {
+                console.log('🔄 Usando downloadContentFromMessage (método do socket)...');
+                const stream = await this.sock.downloadContentFromMessage(videoMessage, 'video');
+                
+                // Converte stream para buffer
+                const chunks = [];
+                for await (const chunk of stream) {
+                    chunks.push(chunk);
+                }
+                buffer = Buffer.concat(chunks);
+                console.log(`✅ Download concluído: ${buffer.length} bytes`);
+                
+            } else if (typeof this.sock.downloadMediaMessage === 'function') {
+                // Método 2: downloadMediaMessage (versão anterior)
+                console.log('🔄 Usando downloadMediaMessage...');
+                buffer = await this.sock.downloadMediaMessage(message);
+                console.log(`✅ Download concluído: ${buffer.length} bytes`);
+                
+            } else {
+                throw new Error('Nenhum método de download disponível');
+            }
+            
+            if (!buffer || buffer.length === 0) {
+                throw new Error('Buffer vazio - download falhou');
+            }
+            
+            return buffer;
+            
         } catch (error) {
             console.error('❌ Erro ao baixar vídeo:', error);
+            console.log('🔍 Métodos disponíveis:');
+            console.log(`   downloadContentFromMessage (import): ${downloadContentFromMessage ? 'SIM' : 'NÃO'}`);
+            console.log(`   downloadContentFromMessage (socket): ${typeof this.sock.downloadContentFromMessage === 'function' ? 'SIM' : 'NÃO'}`);
+            console.log(`   downloadMediaMessage: ${typeof this.sock.downloadMediaMessage === 'function' ? 'SIM' : 'NÃO'}`);
             return null;
         }
     }
