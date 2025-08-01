@@ -83,108 +83,22 @@ class MessageHandler {
     }
 
     /**
-     * Envia menu de boas-vindas com diferentes tipos de botões
+     * Envia menu de boas-vindas - versão simplificada que sempre funciona
      * @param {string} userNumber - Número do usuário
      */
     async sendWelcomeMenu(userNumber) {
         try {
-            // Tentativa 1: Lista interativa (mais moderna)
-            const success = await this.sendInteractiveList(userNumber);
-            if (success) return;
-
-            // Tentativa 2: Botões tradicionais
-            const buttonSuccess = await this.sendTraditionalButtons(userNumber);
-            if (buttonSuccess) return;
-
-            // Fallback: Menu com emojis numerados
+            // Vai direto para o menu numerado que sempre funciona
             await this.sendFallbackMenu(userNumber);
-
+            console.log(`✅ Menu numerado enviado para ${userNumber}`);
+            
         } catch (error) {
             console.error('❌ Erro ao enviar menu:', error);
-            await this.sendFallbackMenu(userNumber);
         }
     }
 
     /**
-     * Envia lista interativa (método mais moderno)
-     * @param {string} userNumber - Número do usuário
-     * @returns {boolean} - Sucesso ou falha
-     */
-    async sendInteractiveList(userNumber) {
-        try {
-            const listMessage = {
-                text: "🎉 *Olá! Bem-vindo ao nosso atendimento!*",
-                footer: "Powered by Baileys Bot v1.0",
-                title: "Menu de Atendimento",
-                buttonText: "Ver Opções 📋",
-                sections: [
-                    {
-                        title: "Escolha uma opção:",
-                        rows: [
-                            {
-                                rowId: "suporte",
-                                title: "Suporte 🌐",
-                                description: "Falar com nosso suporte técnico"
-                            },
-                            {
-                                rowId: "info_bot",
-                                title: "Informações Bot 🤖", 
-                                description: "Conhecer mais sobre este bot"
-                            }
-                        ]
-                    }
-                ]
-            };
-
-            await this.sock.sendMessage(userNumber, listMessage);
-            console.log(`✅ Lista interativa enviada para ${userNumber}`);
-            return true;
-
-        } catch (error) {
-            console.log(`⚠️ Lista interativa falhou para ${userNumber}: ${error.message}`);
-            return false;
-        }
-    }
-
-    /**
-     * Envia botões tradicionais
-     * @param {string} userNumber - Número do usuário  
-     * @returns {boolean} - Sucesso ou falha
-     */
-    async sendTraditionalButtons(userNumber) {
-        try {
-            const buttonMessage = {
-                text: `🎉 *Olá! Bem-vindo ao nosso atendimento!*
-
-Escolha uma das opções abaixo para continuar:`,
-                footer: 'Powered by Baileys Bot v1.0',
-                buttons: [
-                    {
-                        buttonId: 'suporte',
-                        buttonText: { displayText: 'Suporte 🌐' },
-                        type: 1
-                    },
-                    {
-                        buttonId: 'info_bot',
-                        buttonText: { displayText: 'Informações Bot 🤖' },
-                        type: 1
-                    }
-                ],
-                headerType: 1
-            };
-
-            await this.sock.sendMessage(userNumber, buttonMessage);
-            console.log(`✅ Botões tradicionais enviados para ${userNumber}`);
-            return true;
-
-        } catch (error) {
-            console.log(`⚠️ Botões tradicionais falharam para ${userNumber}: ${error.message}`);
-            return false;
-        }
-    }
-
-    /**
-     * Envia menu fallback com emojis numerados
+     * Envia menu fallback com emojis numerados (SEMPRE FUNCIONA)
      * @param {string} userNumber - Número do usuário
      */
     async sendFallbackMenu(userNumber) {
@@ -199,7 +113,10 @@ Falar com nosso suporte técnico
 *2️⃣ Informações Bot 🤖*
 Conhecer mais sobre este bot
 
-_Digite 1 ou 2 para continuar_`;
+_Digite 1 ou 2 para continuar_
+
+---
+💡 _Dica: Digite "menu" a qualquer momento para ver as opções novamente_`;
 
             await this.sock.sendMessage(userNumber, { text: fallbackMessage });
             console.log(`✅ Menu fallback enviado para ${userNumber}`);
@@ -221,9 +138,11 @@ _Digite 1 ou 2 para continuar_`;
             switch (option) {
                 case '1':
                     buttonId = 'suporte';
+                    console.log(`🔢 Usuário ${userNumber} escolheu opção 1 (Suporte)`);
                     break;
                 case '2':
                     buttonId = 'info_bot';
+                    console.log(`🔢 Usuário ${userNumber} escolheu opção 2 (Info Bot)`);
                     break;
                 default:
                     await this.sock.sendMessage(userNumber, {
@@ -254,7 +173,7 @@ _Digite 1 ou 2 para continuar_`;
 
 Para falar com nosso suporte humano, clique no link abaixo:
 
-📱 wa.me/5599999999999
+📱 *wa.me/5599999999999*
 
 🕒 *Horário de atendimento:*
 Segunda a Sexta: 08:00 às 18:00
@@ -262,7 +181,8 @@ Sábado: 08:00 às 12:00
 
 ⚡ Resposta em até 30 minutos!
 
-_Digite "menu" para voltar ao início_`;
+---
+🔄 _Digite "menu" para voltar ao início_`;
                     break;
 
                 case 'info_bot':
@@ -277,11 +197,14 @@ _Digite "menu" para voltar ao início_`;
 • Baileys WhatsApp Library
 • Estrutura modular
 
-💡 **Comandos disponíveis:**
-• "oi" ou "menu" - Exibe menu interativo
-• Digite 1 ou 2 para navegação rápida
+💡 **Como usar:**
+• Digite "oi" ou "menu" - Exibe menu
+• Digite 1 ou 2 - Navegação rápida
 
-🔄 Digite "menu" a qualquer momento para voltar ao início.`;
+🔧 **Status:** ✅ Online e funcionando
+
+---
+🔄 _Digite "menu" a qualquer momento para voltar ao início_`;
                     break;
 
                 default:
