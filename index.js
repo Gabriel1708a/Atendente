@@ -6,6 +6,7 @@ const P = require('pino');
 // Importar módulos personalizados
 const MessageHandler = require('./handlers/messageHandler');
 const AuthManager = require('./session/auth');
+const InputManager = require('./utils/inputManager');
 
 /**
  * Bot de Atendimento WhatsApp - Arquivo Principal
@@ -15,6 +16,7 @@ class WhatsAppBot {
     constructor() {
         this.sock = null;
         this.authManager = new AuthManager();
+        this.inputManager = new InputManager();
         this.messageHandler = null;
         this.isConnected = false;
         
@@ -29,9 +31,26 @@ class WhatsAppBot {
         console.log('🚀 Iniciando Bot de Atendimento WhatsApp...\n');
         
         try {
+            // Verifica se já existe sessão
+            if (!this.authManager.hasExistingSession()) {
+                // Pergunta método de conexão
+                const method = await this.inputManager.askConnectionMethod();
+                this.authManager.setConnectionMethod(method);
+                
+                // Se escolheu código, pergunta o número
+                if (method === 'code') {
+                    const phoneNumber = await this.inputManager.askPhoneNumber();
+                    this.authManager.setPhoneNumber(phoneNumber);
+                }
+                
+                // Fecha interface de input
+                this.inputManager.closeInterface();
+            }
+            
             await this.connect();
         } catch (error) {
             console.error('❌ Erro fatal ao iniciar bot:', error);
+            this.inputManager.closeInterface();
             process.exit(1);
         }
     }
@@ -44,14 +63,22 @@ class WhatsAppBot {
             // Carrega estado de autenticação
             const { state, saveCreds } = await this.authManager.loadAuthState();
             
-            // Cria conexão
-            this.sock = makeWASocket({
+            // Configura opções da conexão
+            const socketOptions = {
                 auth: state,
                 logger: this.logger,
-                printQRInTerminal: false, // Vamos customizar o QR
-                browser: ['Bot Atendimento', 'Chrome', '1.0.0'],
+                printQRInTerminal: false, // Vamos customizar
+                browser: ['Bot Atendimento', 'Chrome', '2.0.0'],
                 generateHighQualityLinkPreview: true
-            });
+            };
+
+            // Se for método de código e tiver número, adiciona configuração
+            if (this.authManager.getConnectionMethod() === 'code' && this.authManager.getPhoneNumber()) {
+                socketOptions.mobile = false; // Força modo web para aceitar pairingCode
+            }
+
+            // Cria conexão
+            this.sock = makeWASocket(socketOptions);
 
             // Inicializa handler de mensagens
             this.messageHandler = new MessageHandler(this.sock);
@@ -77,9 +104,14 @@ class WhatsAppBot {
         this.sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
 
-            // Exibe QR Code customizado
+            // Exibe QR Code customizado ou solicita pareamento
             if (qr) {
-                this.displayCustomQR(qr);
+                if (this.authManager.getConnectionMethod() === 'qr') {
+                    this.displayCustomQR(qr);
+                } else {
+                    // Se método for código mas ainda está gerando QR, tenta pareamento
+                    await this.handlePairingCode();
+                }
             }
 
             if (connection === 'close') {
@@ -120,6 +152,45 @@ class WhatsAppBot {
         console.log('3️⃣  Toque em "Conectar um dispositivo"');
         console.log('4️⃣  Escaneie o código QR acima');
         console.log('\n⏳ Aguardando escaneamento...\n');
+    }
+
+    /**
+     * Lida com pareamento por código
+     */
+    async handlePairingCode() {
+        try {
+            const phoneNumber = this.authManager.getPhoneNumber();
+            if (!phoneNumber) {
+                console.log('❌ Número de telefone não configurado para pareamento');
+                return;
+            }
+
+            console.clear();
+            console.log('┌────────────────────────────────────────────────────────────┐');
+            console.log('│                 🤖 BOT WHATSAPP                           │');
+            console.log('│               🔢 CÓDIGO DE PAREAMENTO                     │');
+            console.log('└────────────────────────────────────────────────────────────┘\n');
+
+            this.inputManager.showPairingWait();
+            
+            // Solicita código de pareamento
+            const code = await this.sock.requestPairingCode(phoneNumber);
+            
+            this.inputManager.showPairingSuccess(phoneNumber);
+            
+            console.log(`🔑 CÓDIGO DE PAREAMENTO: ${code}`);
+            console.log('\n📱 Digite este código no seu WhatsApp ou aguarde recebê-lo por mensagem');
+            console.log('⏰ O código expira em alguns minutos\n');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+        } catch (error) {
+            console.error('❌ Erro ao solicitar código de pareamento:', error);
+            this.inputManager.showPairingError(error.message || 'Erro desconhecido');
+            
+            // Em caso de erro, volta para QR code
+            console.log('🔄 Mudando para método QR Code...\n');
+            this.authManager.setConnectionMethod('qr');
+        }
     }
 
     /**
@@ -189,6 +260,17 @@ class WhatsAppBot {
         console.log('🎉 Bot WhatsApp conectado com sucesso!');
         console.log('📱 Número conectado:', this.sock.user?.id?.split(':')[0]);
         console.log('👤 Nome:', this.sock.user?.name || 'Não definido');
+        
+        // Mostra método de conexão usado
+        const method = this.authManager.getConnectionMethod();
+        if (method === 'code') {
+            console.log('🔑 Método: Código de Pareamento');
+        } else if (method === 'qr') {
+            console.log('📷 Método: QR Code');
+        } else {
+            console.log('🔄 Método: Sessão Existente (reconectado automaticamente)');
+        }
+        
         console.log('\n🤖 Bot está ativo e aguardando mensagens...');
         console.log('💡 Digite "oi" ou "menu" em qualquer conversa para testar!\n');
         
@@ -200,6 +282,9 @@ class WhatsAppBot {
         console.log('• Vídeos podem ser adicionados em qualquer seção');
         console.log('• Efeito de digitação realista incluído');
         console.log('• Sistema inteligente de posicionamento');
+        console.log('\n🔐 MÉTODOS DE CONEXÃO:');
+        console.log('• QR Code - Método tradicional');
+        console.log('• Código de Pareamento - Mais prático (novo!)');
         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         this.isConnected = true;
@@ -210,6 +295,10 @@ class WhatsAppBot {
      */
     async stop() {
         console.log('🛑 Parando bot...');
+        
+        // Fecha interface de input se aberta
+        this.inputManager.closeInterface();
+        
         if (this.sock) {
             await this.sock.logout();
         }

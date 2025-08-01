@@ -1,5 +1,43 @@
 # 📋 Changelog - Bot WhatsApp
 
+## [2.1.0] - Sistema de Pareamento por Código
+
+### 🔐 Nova Funcionalidade Principal
+
+#### Código de Pareamento
+- **Conecte sem QR Code**: Digite apenas o número do WhatsApp
+- **Mais prático**: Ideal para servidores e automação
+- **Código automático**: Receba o código de 8 dígitos por mensagem
+- **Validação inteligente**: Formatos flexíveis de número aceitos
+
+#### Menu de Escolha de Conexão
+- **Seleção interativa**: Escolha entre QR Code ou Código
+- **Interface amigável**: Instruções claras e paso a paso
+- **Fallback automático**: Volta para QR em caso de erro
+- **Compatibilidade total**: Funciona com sessões existentes
+
+### 🛠️ Melhorias Técnicas
+
+#### Novo Módulo InputManager
+- **Gerenciamento de entrada**: Interface readline para interação
+- **Validação de números**: Suporte a formatos brasileiros e internacionais
+- **Feedback visual**: Mensagens informativas e de progresso
+- **Tratamento de erros**: Orientações claras para problemas
+
+#### Sistema de Autenticação Expandido
+- **Múltiplos métodos**: QR Code e Código de Pareamento
+- **Estado persistente**: Lembra método usado na primeira conexão
+- **Configuração flexível**: Adaptável a diferentes necessidades
+
+### 📱 Formatos de Número Suportados
+
+```
+✅ +5511999999999  (internacional completo)
+✅ 5511999999999   (nacional com DDD)
+✅ 11999999999     (local - adiciona 55 automaticamente)
+✅ +55 11 99999-9999 (com formatação)
+```
+
 ## [2.0.0] - Sistema de Vídeos e Efeitos Realistas
 
 ### 🎥 Novas Funcionalidades

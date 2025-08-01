@@ -11,6 +11,7 @@ Bot automatizado para atendimento ao cliente no WhatsApp, desenvolvido com a bib
 - ✅ **Sistema de Vídeos**: Comando !uparvideo para adicionar vídeos
 - ✅ **Efeito de Digitação**: Bot simula digitação realista
 - ✅ **Seções Personalizadas**: Crie novas opções com vídeos
+- ✅ **Código de Pareamento**: Conecte sem QR Code usando número
 - ✅ **Sessão Persistente**: Não requer QR code a cada uso
 - ✅ **Reconexão Automática**: Recupera conexão automaticamente
 - ✅ **Interface Amigável**: QR code customizado no terminal
@@ -28,6 +29,8 @@ whatsapp-bot-baileys/
 ├── 📁 session/                # Gerenciamento de sessão
 │   ├── 📄 auth.js            # Autenticação
 │   └── 📁 baileys_auth_info/ # Dados de sessão (criado automaticamente)
+├── 📁 utils/                  # Utilitários
+│   └── 📄 inputManager.js     # Gerenciamento de entrada do usuário
 ├── 📁 videos/                 # Armazenamento de vídeos (criado automaticamente)
 │   └── 📄 videos-config.json  # Configuração de vídeos
 ```
@@ -68,15 +71,25 @@ npm start
 ### Primeira Execução
 
 1. Execute `npm start`
-2. Um QR code será exibido no terminal
-3. Escaneie com seu WhatsApp:
+2. **Escolha o método de conexão:**
+   - **QR Code (Método 1)**: Escaneie com WhatsApp
+   - **Código de Pareamento (Método 2)**: Digite seu número
+
+#### Método QR Code:
+3. Um QR code será exibido no terminal
+4. Escaneie com seu WhatsApp:
    - Abra WhatsApp > Menu > Dispositivos conectados
    - Toque em "Conectar um dispositivo" 
    - Escaneie o QR code
 
+#### Método Código de Pareamento:
+3. Digite o número do WhatsApp (ex: +5511999999999)
+4. Um código de 8 dígitos será enviado para você
+5. Digite o código no WhatsApp ou aguarde recebê-lo por mensagem
+
 ### Execuções Seguintes
 
-O bot se conectará automaticamente usando a sessão salva, sem necessidade de QR code.
+O bot se conectará automaticamente usando a sessão salva, **sem necessidade de QR code ou código de pareamento**.
 
 ### Testando o Bot
 
@@ -121,6 +134,39 @@ O bot se conectará automaticamente usando a sessão salva, sem necessidade de Q
 - ✅ **Múltiplas Seções**: Adicione vídeos em qualquer parte do bot
 - ✅ **Seções Personalizadas**: Crie novas opções no menu
 - ✅ **Substituição Inteligente**: Vídeos antigos são substituídos automaticamente
+
+## 🔐 Sistema de Pareamento por Código
+
+### Vantagens do Código de Pareamento
+
+- ✅ **Mais Prático**: Não precisa escanear QR code
+- ✅ **Automatização**: Ideal para servidores sem interface gráfica
+- ✅ **Flexibilidade**: Funciona em qualquer ambiente
+- ✅ **Simplicidade**: Apenas digite o número e pronto
+
+### Como Funciona
+
+1. **Escolha o método 2** na primeira execução
+2. **Digite seu número** no formato +5511999999999
+3. **Aguarde o código** ser enviado para seu WhatsApp
+4. **Digite ou receba** o código de 8 dígitos
+5. **Conexão estabelecida** automaticamente
+
+### Formatos de Número Aceitos
+
+```
+✅ +5511999999999  (recomendado)
+✅ 5511999999999   (sem o +)
+✅ 11999999999     (será adicionado 55 automaticamente)
+✅ +55 11 99999-9999 (com espaços e traços)
+```
+
+### Solução de Problemas
+
+- **Código não chegou**: Aguarde até 2 minutos
+- **Número inválido**: Verifique o formato (+5511999999999)
+- **WhatsApp não instalado**: Instale o WhatsApp no número
+- **Erro de conexão**: Tente novamente ou use QR code
 
 ## ⚙️ Personalização
 

@@ -7,6 +7,8 @@ const path = require('path');
 class AuthManager {
     constructor() {
         this.sessionPath = path.join(__dirname, 'baileys_auth_info');
+        this.connectionMethod = null; // 'qr' ou 'code'
+        this.phoneNumber = null; // Número para pareamento
     }
 
     /**
@@ -57,6 +59,38 @@ class AuthManager {
         } catch (error) {
             console.error('❌ Erro ao remover sessão:', error);
         }
+    }
+
+    /**
+     * Define método de conexão
+     * @param {string} method - 'qr' ou 'code'
+     */
+    setConnectionMethod(method) {
+        this.connectionMethod = method;
+    }
+
+    /**
+     * Define número para pareamento
+     * @param {string} phoneNumber - Número formatado
+     */
+    setPhoneNumber(phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
+    /**
+     * Obtém método de conexão atual
+     * @returns {string} Método de conexão
+     */
+    getConnectionMethod() {
+        return this.connectionMethod;
+    }
+
+    /**
+     * Obtém número para pareamento
+     * @returns {string} Número de telefone
+     */
+    getPhoneNumber() {
+        return this.phoneNumber;
     }
 }
 
