@@ -19,6 +19,7 @@ class WhatsAppBot {
         this.inputManager = new InputManager();
         this.messageHandler = null;
         this.isConnected = false;
+        this.pairingAttempted = false; // Controla tentativas de pareamento
         
         // Logger configurado
         this.logger = P({ level: 'silent' }); // Remove logs internos do Baileys
@@ -68,13 +69,17 @@ class WhatsAppBot {
                 auth: state,
                 logger: this.logger,
                 printQRInTerminal: false, // Vamos customizar
-                browser: ['Bot Atendimento', 'Chrome', '2.0.0'],
-                generateHighQualityLinkPreview: true
+                browser: ['Bot Atendimento', 'Chrome', '2.1.0'],
+                generateHighQualityLinkPreview: true,
+                defaultQueryTimeoutMs: 60_000, // 60 segundos timeout
+                markOnlineOnConnect: true
             };
 
-            // Se for método de código e tiver número, adiciona configuração
+            // Se for método de código e tiver número, adiciona configuração específica
             if (this.authManager.getConnectionMethod() === 'code' && this.authManager.getPhoneNumber()) {
-                socketOptions.mobile = false; // Força modo web para aceitar pairingCode
+                socketOptions.mobile = false; // Força modo web
+                socketOptions.syncFullHistory = false; // Não sincroniza histórico completo
+                console.log('🔧 Configurando conexão para pareamento por código...');
             }
 
             // Cria conexão
@@ -102,21 +107,31 @@ class WhatsAppBot {
 
         // Evento de atualização de conexão
         this.sock.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect, qr } = update;
+            const { connection, lastDisconnect, qr, isNewLogin } = update;
 
+            console.log(`🔄 Update de conexão: ${connection || 'connecting'}`);
+            
             // Exibe QR Code customizado ou solicita pareamento
             if (qr) {
-                if (this.authManager.getConnectionMethod() === 'qr') {
+                const method = this.authManager.getConnectionMethod();
+                console.log(`🔍 Método configurado: ${method}`);
+                
+                if (method === 'qr' || !method) {
                     this.displayCustomQR(qr);
-                } else {
-                    // Se método for código mas ainda está gerando QR, tenta pareamento
-                    await this.handlePairingCode();
+                } else if (method === 'code') {
+                    // Para método código, só tenta pareamento uma vez
+                    if (!this.pairingAttempted) {
+                        this.pairingAttempted = true;
+                        await this.handlePairingCode();
+                    }
                 }
             }
 
             if (connection === 'close') {
+                this.pairingAttempted = false; // Reset para próxima tentativa
                 await this.handleDisconnection(lastDisconnect);
             } else if (connection === 'open') {
+                this.pairingAttempted = false; // Reset após sucesso
                 this.handleSuccessfulConnection();
             }
         });
@@ -171,25 +186,63 @@ class WhatsAppBot {
             console.log('│               🔢 CÓDIGO DE PAREAMENTO                     │');
             console.log('└────────────────────────────────────────────────────────────┘\n');
 
-            this.inputManager.showPairingWait();
+            console.log(`📱 Número configurado: +${phoneNumber}`);
+            console.log('⏳ Solicitando código de pareamento...\n');
             
-            // Solicita código de pareamento
+            // Aguarda um pouco antes de solicitar o código
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Solicita código de pareamento com formato correto
+            console.log('🔄 Enviando solicitação de pareamento...');
             const code = await this.sock.requestPairingCode(phoneNumber);
             
-            this.inputManager.showPairingSuccess(phoneNumber);
+            console.clear();
+            console.log('┌────────────────────────────────────────────────────────────┐');
+            console.log('│                 ✅ CÓDIGO GERADO                          │');
+            console.log('└────────────────────────────────────────────────────────────┘\n');
             
-            console.log(`🔑 CÓDIGO DE PAREAMENTO: ${code}`);
-            console.log('\n📱 Digite este código no seu WhatsApp ou aguarde recebê-lo por mensagem');
-            console.log('⏰ O código expira em alguns minutos\n');
+            console.log(`🔑 CÓDIGO DE PAREAMENTO: ${code.toUpperCase()}`);
+            console.log(`📱 Número: +${phoneNumber}`);
+            console.log('\n📋 COMO USAR O CÓDIGO:');
+            console.log('1️⃣  Abra o WhatsApp no seu celular');
+            console.log('2️⃣  Vá em Configurações > Dispositivos conectados');
+            console.log('3️⃣  Toque em "Conectar um dispositivo"');
+            console.log('4️⃣  Escolha "Conectar com código de dispositivo"');
+            console.log(`5️⃣  Digite o código: ${code.toUpperCase()}`);
+            console.log('\n⏰ O código expira em alguns minutos');
+            console.log('🔄 Aguardando confirmação...\n');
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         } catch (error) {
             console.error('❌ Erro ao solicitar código de pareamento:', error);
-            this.inputManager.showPairingError(error.message || 'Erro desconhecido');
+            console.log('\n🚫 ERRO DETALHADO:');
+            console.log(`   ${error.message}`);
             
-            // Em caso de erro, volta para QR code
-            console.log('🔄 Mudando para método QR Code...\n');
-            this.authManager.setConnectionMethod('qr');
+            if (error.message.includes('invalid')) {
+                console.log('\n💡 POSSÍVEIS CAUSAS:');
+                console.log('   • Número não tem WhatsApp ativo');
+                console.log('   • Formato do número incorreto');
+                console.log('   • WhatsApp não suporta pareamento neste número');
+            }
+            
+            console.log('\n🔄 Tentativas de solução:');
+            console.log('   1. Verifique se o número está correto');
+            console.log('   2. Confirme se o WhatsApp está ativo no número');
+            console.log('   3. Tente usar o QR Code como alternativa');
+            
+            // Pergunta se quer tentar novamente ou usar QR
+            this.inputManager.createInterface();
+            const choice = await this.inputManager.question('\n❓ Tentar novamente (1) ou usar QR Code (2)? ');
+            this.inputManager.closeInterface();
+            
+            if (choice === '1') {
+                // Tenta novamente
+                setTimeout(() => this.handlePairingCode(), 2000);
+            } else {
+                // Volta para QR code
+                console.log('🔄 Mudando para método QR Code...\n');
+                this.authManager.setConnectionMethod('qr');
+            }
         }
     }
 

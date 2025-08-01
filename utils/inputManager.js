@@ -74,53 +74,105 @@ class InputManager {
      */
     async askPhoneNumber() {
         console.log('\n📱 NÚMERO DO BOT\n');
-        console.log('Digite o número que será usado como bot.');
-        console.log('📋 Formato aceito: +5511999999999 ou 5511999999999');
-        console.log('🌍 Inclua o código do país (Brasil: +55)');
+        console.log('⚠️  IMPORTANTE: Use o número EXATO como está registrado no WhatsApp');
+        console.log('📋 Formatos aceitos para Brasil:');
+        console.log('   • 5511987654321 (completo com código do país)');
+        console.log('   • 11987654321 (celular com 9º dígito)');
+        console.log('   • +5511987654321 (com + também funciona)');
+        console.log('\n💡 Dicas importantes:');
+        console.log('   • Para celular: DEVE ter o 9º dígito (11987654321)');
+        console.log('   • Para fixo: sem o 9º dígito (1187654321)');
+        console.log('   • Verifique se o número está ativo no WhatsApp');
         
         while (true) {
-            const phoneNumber = await this.question('\n📞 Digite o número do WhatsApp: ');
+            const phoneNumber = await this.question('\n📞 Digite o número EXATO do WhatsApp: ');
             
-            if (this.validatePhoneNumber(phoneNumber)) {
-                return this.formatPhoneNumber(phoneNumber);
-            } else {
-                console.log('❌ Número inválido. Use o formato: +5511999999999');
-                console.log('💡 Exemplo: +5511987654321');
+            try {
+                if (this.validatePhoneNumber(phoneNumber)) {
+                    return this.formatPhoneNumber(phoneNumber);
+                }
+            } catch (error) {
+                console.log(`❌ Erro: ${error.message}`);
             }
+            
+            console.log('\n❌ Número inválido ou formato incorreto');
+            console.log('💡 Exemplos corretos:');
+            console.log('   • 11987654321 (celular)');
+            console.log('   • 5511987654321 (completo)');
+            console.log('   • +5511987654321 (com +)');
+            console.log('\n🔄 Tente novamente...');
         }
     }
 
     /**
-     * Valida formato do número de telefone
+     * Valida formato do número de telefone brasileiro
      * @param {string} phone - Número a ser validado
      * @returns {boolean} Se é válido
      */
     validatePhoneNumber(phone) {
         // Remove espaços e caracteres especiais
-        const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+        const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '');
         
-        // Verifica se tem pelo menos 10 dígitos (código país + número)
-        // e se contém apenas números e opcionalmente +
-        const phoneRegex = /^\+?[1-9]\d{9,14}$/;
+        console.log(`🔍 Validando número: ${phone} -> ${cleanPhone}`);
         
-        return phoneRegex.test(cleanPhone);
+        // Verifica se contém apenas números
+        if (!/^\d+$/.test(cleanPhone)) {
+            console.log('❌ Número contém caracteres inválidos');
+            return false;
+        }
+        
+        // Verifica formatos brasileiros válidos
+        const validFormats = [
+            /^55\d{2}9\d{8}$/, // 5511987654321 (formato completo com 9)
+            /^55\d{2}[6-9]\d{7}$/, // 5511987654321 (fixo)
+            /^\d{2}9\d{8}$/, // 11987654321 (celular com 9)
+            /^\d{2}[6-9]\d{7}$/, // 1187654321 (fixo local)
+        ];
+        
+        const isValid = validFormats.some(regex => regex.test(cleanPhone));
+        
+        if (isValid) {
+            console.log('✅ Número válido');
+        } else {
+            console.log('❌ Número não atende aos formatos brasileiros válidos');
+            console.log('Formatos aceitos:');
+            console.log('- 5511987654321 (completo)');
+            console.log('- 11987654321 (celular)');
+            console.log('- 1187654321 (fixo)');
+        }
+        
+        return isValid;
     }
 
     /**
-     * Formata número de telefone para o padrão do WhatsApp
+     * Formata número de telefone para o padrão do WhatsApp Baileys
      * @param {string} phone - Número a ser formatado
-     * @returns {string} Número formatado
+     * @returns {string} Número formatado para Baileys
      */
     formatPhoneNumber(phone) {
         // Remove tudo exceto números
         let cleanPhone = phone.replace(/[^\d]/g, '');
         
+        console.log(`🔍 Número original: ${phone}`);
+        console.log(`🔍 Número limpo: ${cleanPhone}`);
+        
         // Se não começar com código do país, assume Brasil (55)
-        if (!cleanPhone.startsWith('55') && cleanPhone.length === 11) {
-            cleanPhone = '55' + cleanPhone;
+        if (!cleanPhone.startsWith('55')) {
+            if (cleanPhone.length === 11) {
+                // Número brasileiro com 11 dígitos (11987654321)
+                cleanPhone = '55' + cleanPhone;
+            } else if (cleanPhone.length === 10) {
+                // Número brasileiro com 10 dígitos (1187654321) - adiciona 9
+                cleanPhone = '55' + cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
+            }
         }
         
-        // Remove o + se existir e readiciona
+        // Valida se tem pelo menos 12 dígitos (país + ddd + número)
+        if (cleanPhone.length < 12) {
+            throw new Error(`Número muito curto: ${cleanPhone}. Precisa ter pelo menos 12 dígitos.`);
+        }
+        
+        console.log(`🔍 Número final formatado: ${cleanPhone}`);
         return cleanPhone;
     }
 
