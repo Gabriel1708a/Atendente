@@ -1,0 +1,19 @@
+{
+  "welcome": "videos/welcome_video.mp4",
+  "suporte": "videos/suporte_video.mp4", 
+  "info_bot": "videos/info_bot_video.mp4",
+  "custom": [
+    {
+      "id": "custom_1702834567890",
+      "name": "Tutorial de Uso",
+      "videoPath": "videos/custom_1702834567890_video.mp4",
+      "created": 1702834567890
+    },
+    {
+      "id": "custom_1702834789012",
+      "name": "Promoções",
+      "videoPath": "videos/custom_1702834789012_video.mp4", 
+      "created": 1702834789012
+    }
+  ]
+}

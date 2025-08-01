@@ -1,4 +1,5 @@
 const { generateWAMessageFromContent, proto } = require('@whiskeysockets/baileys');
+const VideoHandler = require('./videoHandler');
 
 /**
  * Handler para processar mensagens recebidas e responder com diferentes tipos de botões interativos
@@ -6,10 +7,11 @@ const { generateWAMessageFromContent, proto } = require('@whiskeysockets/baileys
 class MessageHandler {
     constructor(sock) {
         this.sock = sock;
+        this.videoHandler = new VideoHandler(sock);
         this.botInfo = {
             name: "Bot de Atendimento WhatsApp",
-            version: "1.0.0",
-            description: "Bot automatizado para atendimento ao cliente"
+            version: "2.0.0",
+            description: "Bot automatizado para atendimento ao cliente com suporte a vídeos"
         };
     }
 
@@ -20,22 +22,48 @@ class MessageHandler {
     async handleMessage(m) {
         try {
             const messageType = Object.keys(m.message)[0];
+            const userNumber = m.key.remoteJid;
+            
+            // Verifica se é comando !uparvideo em vídeo
+            if (messageType === 'videoMessage') {
+                const caption = m.message.videoMessage?.caption || '';
+                if (caption.toLowerCase().includes('!uparvideo')) {
+                    await this.videoHandler.handleVideoUpload(m, userNumber);
+                    return;
+                }
+            }
             
             // Verifica se é uma mensagem de texto
             if (messageType === 'conversation' || messageType === 'extendedTextMessage') {
                 const messageText = m.message.conversation || m.message.extendedTextMessage?.text || '';
-                const userNumber = m.key.remoteJid;
                 
                 console.log(`📩 Mensagem recebida de ${userNumber}: ${messageText}`);
+                
+                // Verifica se usuário está aguardando escolha de vídeo
+                if (this.videoHandler.isAwaitingVideoPlacement(userNumber)) {
+                    const userData = this.videoHandler.awaitingVideoPlacement.get(userNumber);
+                    
+                    // Se está aguardando nome de seção personalizada
+                    if (userData && userData.step === 'custom_name') {
+                        await this.videoHandler.handleCustomSectionName(userNumber, messageText);
+                        return;
+                    }
+                    
+                    // Senão, processa escolha de local
+                    await this.videoHandler.handleVideoPlacement(userNumber, messageText.trim());
+                    return;
+                }
                 
                 // Verifica se é comando de ativação
                 if (this.isActivationCommand(messageText)) {
                     await this.sendWelcomeMenu(userNumber);
+                    return;
                 }
                 
-                // Verifica se é resposta numérica (1, 2)
+                // Verifica se é resposta numérica (1, 2, etc.)
                 if (this.isNumericResponse(messageText)) {
                     await this.handleNumericResponse(userNumber, messageText.trim());
+                    return;
                 }
             }
             
@@ -73,13 +101,55 @@ class MessageHandler {
     }
 
     /**
-     * Verifica se é uma resposta numérica (1 ou 2)
+     * Verifica se é uma resposta numérica (1, 2, 3, 4, 5)
      * @param {string} text - Texto da mensagem
      * @returns {boolean}
      */
     isNumericResponse(text) {
-        const numericResponses = ['1', '2'];
+        const numericResponses = ['1', '2', '3', '4', '5'];
         return numericResponses.includes(text.trim());
+    }
+
+    /**
+     * Simula efeito de digitação realista
+     * @param {string} userNumber - Número do usuário
+     * @param {number} duration - Duração em milissegundos
+     */
+    async sendTypingEffect(userNumber, duration = 2000) {
+        try {
+            await this.sock.sendPresenceUpdate('composing', userNumber);
+            await new Promise(resolve => setTimeout(resolve, duration));
+            await this.sock.sendPresenceUpdate('available', userNumber);
+        } catch (error) {
+            console.error('❌ Erro no efeito de digitação:', error);
+        }
+    }
+
+    /**
+     * Envia vídeo se disponível para a seção
+     * @param {string} userNumber - Número do usuário
+     * @param {string} section - Seção (welcome, suporte, info_bot)
+     */
+    async sendVideoIfAvailable(userNumber, section) {
+        try {
+            if (this.videoHandler.hasVideoForSection(section)) {
+                const videoPath = this.videoHandler.getVideoForSection(section);
+                const fs = require('fs');
+                
+                if (fs.existsSync(videoPath)) {
+                    await this.sendTypingEffect(userNumber, 1500);
+                    await this.sock.sendMessage(userNumber, {
+                        video: fs.readFileSync(videoPath),
+                        caption: `🎥 *Vídeo informativo*`
+                    });
+                    console.log(`🎥 Vídeo ${section} enviado para ${userNumber}`);
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error(`❌ Erro ao enviar vídeo ${section}:`, error);
+        }
+        return false;
     }
 
     /**
@@ -88,6 +158,15 @@ class MessageHandler {
      */
     async sendWelcomeMenu(userNumber) {
         try {
+            // Efeito de digitação realista
+            await this.sendTypingEffect(userNumber, 2500);
+            
+            // Envia vídeo de boas-vindas se disponível
+            await this.sendVideoIfAvailable(userNumber, 'welcome');
+            
+            // Pequena pausa antes do menu
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             // Vai direto para o menu numerado que sempre funciona
             await this.sendFallbackMenu(userNumber);
             console.log(`✅ Menu numerado enviado para ${userNumber}`);
@@ -103,6 +182,9 @@ class MessageHandler {
      */
     async sendFallbackMenu(userNumber) {
         try {
+            // Efeito de digitação antes do menu
+            await this.sendTypingEffect(userNumber, 1800);
+            
             const fallbackMessage = `🎉 *Olá! Bem-vindo ao nosso atendimento!*
 
 Escolha uma das opções digitando o número correspondente:
@@ -116,7 +198,8 @@ Conhecer mais sobre este bot
 _Digite 1 ou 2 para continuar_
 
 ---
-💡 _Dica: Digite "menu" a qualquer momento para ver as opções novamente_`;
+💡 _Dica: Digite "menu" a qualquer momento para ver as opções novamente_
+🎥 _Envie um vídeo com "!uparvideo" para adicionar vídeos ao bot_`;
 
             await this.sock.sendMessage(userNumber, { text: fallbackMessage });
             console.log(`✅ Menu fallback enviado para ${userNumber}`);
@@ -165,10 +248,20 @@ _Digite 1 ou 2 para continuar_
      */
     async handleButtonResponse(userNumber, buttonId) {
         try {
+            // Efeito de digitação realista antes da resposta
+            await this.sendTypingEffect(userNumber, 2200);
+            
             let responseMessage = '';
 
             switch (buttonId) {
                 case 'suporte':
+                    // Envia vídeo de suporte se disponível
+                    const sentSuporteVideo = await this.sendVideoIfAvailable(userNumber, 'suporte');
+                    if (sentSuporteVideo) {
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        await this.sendTypingEffect(userNumber, 1500);
+                    }
+                    
                     responseMessage = `🌐 *Suporte ao Cliente*
 
 Para falar com nosso suporte humano, clique no link abaixo:
@@ -186,6 +279,13 @@ Sábado: 08:00 às 12:00
                     break;
 
                 case 'info_bot':
+                    // Envia vídeo do bot se disponível
+                    const sentBotVideo = await this.sendVideoIfAvailable(userNumber, 'info_bot');
+                    if (sentBotVideo) {
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        await this.sendTypingEffect(userNumber, 1500);
+                    }
+                    
                     responseMessage = `🤖 *Informações do Bot*
 
 📋 **Nome:** ${this.botInfo.name}
@@ -196,10 +296,12 @@ Sábado: 08:00 às 12:00
 • Node.js 18+
 • Baileys WhatsApp Library
 • Estrutura modular
+• Sistema de vídeos integrado
 
 💡 **Como usar:**
 • Digite "oi" ou "menu" - Exibe menu
 • Digite 1 ou 2 - Navegação rápida
+• Envie vídeo com "!uparvideo" - Adiciona vídeos
 
 🔧 **Status:** ✅ Online e funcionando
 

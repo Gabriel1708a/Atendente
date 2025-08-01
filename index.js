@@ -195,6 +195,11 @@ class WhatsAppBot {
         console.log('📋 COMANDOS DISPONÍVEIS:');
         console.log('• "oi" ou "menu" - Exibe menu interativo');
         console.log('• Botões: "Suporte 🌐" e "Informações Bot 🤖"');
+        console.log('• !uparvideo - Adiciona vídeos ao bot (envie na legenda)');
+        console.log('\n🎥 RECURSOS DE VÍDEO:');
+        console.log('• Vídeos podem ser adicionados em qualquer seção');
+        console.log('• Efeito de digitação realista incluído');
+        console.log('• Sistema inteligente de posicionamento');
         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         this.isConnected = true;

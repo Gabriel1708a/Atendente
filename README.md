@@ -8,6 +8,9 @@ Bot automatizado para atendimento ao cliente no WhatsApp, desenvolvido com a bib
 - ✅ **Ativação por Comando**: Responde a "oi" ou "menu"
 - ✅ **Suporte Personalizado**: Direciona para contato humano
 - ✅ **Informações do Bot**: Exibe detalhes técnicos
+- ✅ **Sistema de Vídeos**: Comando !uparvideo para adicionar vídeos
+- ✅ **Efeito de Digitação**: Bot simula digitação realista
+- ✅ **Seções Personalizadas**: Crie novas opções com vídeos
 - ✅ **Sessão Persistente**: Não requer QR code a cada uso
 - ✅ **Reconexão Automática**: Recupera conexão automaticamente
 - ✅ **Interface Amigável**: QR code customizado no terminal
@@ -20,10 +23,13 @@ whatsapp-bot-baileys/
 ├── 📄 package.json            # Dependências do projeto
 ├── 📄 README.md               # Documentação
 ├── 📁 handlers/               # Handlers modulares
-│   └── 📄 messageHandler.js   # Processamento de mensagens
+│   ├── 📄 messageHandler.js   # Processamento de mensagens
+│   └── 📄 videoHandler.js     # Gerenciamento de vídeos
 ├── 📁 session/                # Gerenciamento de sessão
 │   ├── 📄 auth.js            # Autenticação
 │   └── 📁 baileys_auth_info/ # Dados de sessão (criado automaticamente)
+├── 📁 videos/                 # Armazenamento de vídeos (criado automaticamente)
+│   └── 📄 videos-config.json  # Configuração de vídeos
 ```
 
 ## 🛠️ Tecnologias Utilizadas
@@ -90,8 +96,31 @@ O bot se conectará automaticamente usando a sessão salva, sem necessidade de Q
 | `oi` ou `menu` | Exibe menu principal interativo |
 | `1` | Acesso rápido ao suporte |
 | `2` | Acesso rápido às informações do bot |
+| `!uparvideo` | Adiciona vídeo ao bot (envie na legenda do vídeo) |
 | Botão/Lista "Suporte 🌐" | Informações de contato do suporte |
 | Botão/Lista "Informações Bot 🤖" | Detalhes técnicos do bot |
+
+## 🎥 Sistema de Vídeos
+
+### Como Usar o Comando !uparvideo
+
+1. **Grave ou selecione um vídeo**
+2. **Adicione `!uparvideo` na legenda** do vídeo
+3. **Envie o vídeo** para o bot
+4. **Escolha onde adicionar:**
+   - Menu Principal (boas-vindas)
+   - Seção Suporte
+   - Informações do Bot
+   - Nova Seção Personalizada
+5. **Pronto!** O vídeo será enviado automaticamente
+
+### Funcionalidades dos Vídeos
+
+- ✅ **Integração Automática**: Vídeos são enviados junto com as respostas
+- ✅ **Efeito de Digitação**: Bot simula digitação antes de enviar
+- ✅ **Múltiplas Seções**: Adicione vídeos em qualquer parte do bot
+- ✅ **Seções Personalizadas**: Crie novas opções no menu
+- ✅ **Substituição Inteligente**: Vídeos antigos são substituídos automaticamente
 
 ## ⚙️ Personalização
 
@@ -99,20 +128,31 @@ O bot se conectará automaticamente usando a sessão salva, sem necessidade de Q
 
 Edite o arquivo `handlers/messageHandler.js`:
 
-- **Mensagem de boas-vindas**: Linha ~70
-- **Informações de suporte**: Linha ~125  
-- **Informações do bot**: Linha ~140
+- **Mensagem de boas-vindas**: Linha ~110
+- **Informações de suporte**: Linha ~180
+- **Informações do bot**: Linha ~200
 
-### Adicionar Novos Botões
+### Gerenciar Vídeos
 
-1. Adicione novo botão no array `buttons` (linha ~80)
-2. Adicione case correspondente no `switch` (linha ~120)
+Os vídeos são armazenados em `videos/` e configurados em `videos/videos-config.json`:
+
+- **Vídeo de boas-vindas**: `welcome_video.mp4`
+- **Vídeo de suporte**: `suporte_video.mp4`
+- **Vídeo do bot**: `info_bot_video.mp4`
+- **Vídeos personalizados**: `custom_[timestamp]_video.mp4`
 
 ### Configurar Suporte
 
-Substitua o número de exemplo na linha ~131:
+Substitua o número de exemplo na linha ~180:
 ```javascript
 📱 wa.me/5599999999999  // Substitua pelo seu número
+```
+
+### Personalizar Efeito de Digitação
+
+Edite durações no `messageHandler.js`:
+```javascript
+await this.sendTypingEffect(userNumber, 2000); // 2 segundos
 ```
 
 ## 🔄 Scripts Disponíveis
