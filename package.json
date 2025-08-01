@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "clear-session": "node scripts/clear-session.js",
+    "reset": "node scripts/clear-session.js"
   },
   "keywords": [
     "whatsapp",

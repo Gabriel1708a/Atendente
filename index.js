@@ -111,19 +111,33 @@ class WhatsAppBot {
 
             console.log(`🔄 Update de conexão: ${connection || 'connecting'}`);
             
+            // Diferentes estratégias baseadas no método
+            const method = this.authManager.getConnectionMethod();
+            
+            if (connection === 'connecting') {
+                console.log('📡 Conectando ao WhatsApp...');
+            }
+            
             // Exibe QR Code customizado ou solicita pareamento
-            if (qr) {
-                const method = this.authManager.getConnectionMethod();
+            if (qr && !this.pairingAttempted) {
                 console.log(`🔍 Método configurado: ${method}`);
                 
                 if (method === 'qr' || !method) {
                     this.displayCustomQR(qr);
                 } else if (method === 'code') {
-                    // Para método código, só tenta pareamento uma vez
-                    if (!this.pairingAttempted) {
-                        this.pairingAttempted = true;
-                        await this.handlePairingCode();
-                    }
+                    // Para método código, aguarda um pouco mais antes de tentar
+                    console.log('⏳ Preparando pareamento por código...');
+                    this.pairingAttempted = true;
+                    
+                    // Aguarda socket estar mais estável
+                    setTimeout(async () => {
+                        try {
+                            await this.handlePairingCode();
+                        } catch (error) {
+                            console.error('❌ Erro no timing do pareamento:', error);
+                            this.pairingAttempted = false;
+                        }
+                    }, 3000); // 3 segundos de delay
                 }
             }
 
@@ -170,7 +184,7 @@ class WhatsAppBot {
     }
 
     /**
-     * Lida com pareamento por código
+     * Lida com pareamento por código - Versão melhorada
      */
     async handlePairingCode() {
         try {
@@ -186,62 +200,142 @@ class WhatsAppBot {
             console.log('│               🔢 CÓDIGO DE PAREAMENTO                     │');
             console.log('└────────────────────────────────────────────────────────────┘\n');
 
-            console.log(`📱 Número configurado: +${phoneNumber}`);
-            console.log('⏳ Solicitando código de pareamento...\n');
+            console.log(`📱 Número configurado: ${phoneNumber}`);
+            console.log(`🔍 Formato: +${phoneNumber}`);
+            console.log('⏳ Aguardando socket estar pronto...\n');
             
-            // Aguarda um pouco antes de solicitar o código
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Aguarda socket estar pronto e estável
+            let attempts = 0;
+            const maxAttempts = 10;
             
-            // Solicita código de pareamento com formato correto
-            console.log('🔄 Enviando solicitação de pareamento...');
-            const code = await this.sock.requestPairingCode(phoneNumber);
+            while (!this.sock?.user && attempts < maxAttempts) {
+                console.log(`🔄 Tentativa ${attempts + 1}/${maxAttempts} - Aguardando socket...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                attempts++;
+            }
+            
+            if (attempts >= maxAttempts) {
+                throw new Error('Socket não ficou pronto para pareamento');
+            }
+            
+            console.log('✅ Socket pronto! Solicitando código...');
+            
+            // Formata número para diferentes tentativas
+            const phoneFormats = [
+                phoneNumber,                    // 5511987654321
+                phoneNumber.replace(/^55/, ''), // 11987654321
+                `+${phoneNumber}`,              // +5511987654321
+            ];
+            
+            let code = null;
+            let usedFormat = null;
+            
+            for (const format of phoneFormats) {
+                try {
+                    console.log(`🔄 Tentando formato: ${format}`);
+                    code = await this.sock.requestPairingCode(format);
+                    usedFormat = format;
+                    console.log(`✅ Sucesso com formato: ${format}`);
+                    break;
+                } catch (formatError) {
+                    console.log(`❌ Formato ${format} falhou: ${formatError.message}`);
+                    if (formatError.message.includes('rate')) {
+                        console.log('⏰ Rate limit detectado, aguardando...');
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                    }
+                }
+            }
+            
+            if (!code) {
+                throw new Error('Nenhum formato de número funcionou');
+            }
             
             console.clear();
             console.log('┌────────────────────────────────────────────────────────────┐');
-            console.log('│                 ✅ CÓDIGO GERADO                          │');
+            console.log('│                 ✅ CÓDIGO GERADO COM SUCESSO              │');
             console.log('└────────────────────────────────────────────────────────────┘\n');
             
             console.log(`🔑 CÓDIGO DE PAREAMENTO: ${code.toUpperCase()}`);
-            console.log(`📱 Número: +${phoneNumber}`);
-            console.log('\n📋 COMO USAR O CÓDIGO:');
-            console.log('1️⃣  Abra o WhatsApp no seu celular');
-            console.log('2️⃣  Vá em Configurações > Dispositivos conectados');
-            console.log('3️⃣  Toque em "Conectar um dispositivo"');
-            console.log('4️⃣  Escolha "Conectar com código de dispositivo"');
-            console.log(`5️⃣  Digite o código: ${code.toUpperCase()}`);
-            console.log('\n⏰ O código expira em alguns minutos');
-            console.log('🔄 Aguardando confirmação...\n');
+            console.log(`📱 Número usado: ${usedFormat}`);
+            console.log(`🕐 Gerado em: ${new Date().toLocaleTimeString()}`);
+            console.log('\n📋 INSTRUÇÕES DETALHADAS:');
+            console.log('1️⃣  Abra o WhatsApp no celular');
+            console.log('2️⃣  Toque nos 3 pontos (⋮) no canto superior direito');
+            console.log('3️⃣  Selecione "Dispositivos conectados"');
+            console.log('4️⃣  Toque em "Conectar um dispositivo"');
+            console.log('5️⃣  Toque em "Conectar com código de telefone"');
+            console.log(`6️⃣  Digite o código: ${code.toUpperCase()}`);
+            console.log('\n⚠️  IMPORTANTE:');
+            console.log('• O código expira em 60 segundos');
+            console.log('• Digite EXATAMENTE como mostrado');
+            console.log('• Não feche este terminal');
+            console.log('\n🔄 Aguardando confirmação do WhatsApp...\n');
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         } catch (error) {
-            console.error('❌ Erro ao solicitar código de pareamento:', error);
-            console.log('\n🚫 ERRO DETALHADO:');
-            console.log(`   ${error.message}`);
+            console.error('❌ Erro crítico no pareamento:', error);
+            console.log('\n🚫 DIAGNÓSTICO COMPLETO:');
+            console.log(`   Erro: ${error.message}`);
+            console.log(`   Socket: ${this.sock ? 'OK' : 'NULL'}`);
+            console.log(`   Usuário: ${this.sock?.user ? 'OK' : 'NULL'}`);
             
-            if (error.message.includes('invalid')) {
-                console.log('\n💡 POSSÍVEIS CAUSAS:');
-                console.log('   • Número não tem WhatsApp ativo');
-                console.log('   • Formato do número incorreto');
-                console.log('   • WhatsApp não suporta pareamento neste número');
+            // Diagnóstico específico
+            if (error.message.includes('401')) {
+                console.log('\n💡 ERRO 401 - NÃO AUTORIZADO:');
+                console.log('   • Número não tem WhatsApp instalado');
+                console.log('   • Número foi banido do WhatsApp');
+                console.log('   • Número é inválido para pareamento');
+            } else if (error.message.includes('403')) {
+                console.log('\n💡 ERRO 403 - PROIBIDO:');
+                console.log('   • Muitas tentativas de pareamento');
+                console.log('   • Número bloqueado temporariamente');
+                console.log('   • Aguarde 24 horas antes de tentar novamente');
+            } else if (error.message.includes('429')) {
+                console.log('\n💡 ERRO 429 - LIMITE EXCEDIDO:');
+                console.log('   • Muitas solicitações muito rápidas');
+                console.log('   • Aguarde alguns minutos e tente novamente');
             }
             
-            console.log('\n🔄 Tentativas de solução:');
-            console.log('   1. Verifique se o número está correto');
-            console.log('   2. Confirme se o WhatsApp está ativo no número');
-            console.log('   3. Tente usar o QR Code como alternativa');
+            console.log('\n🔧 SOLUÇÕES RECOMENDADAS:');
+            console.log('1. Limpar sessão (delete pasta session/baileys_auth_info)');
+            console.log('2. Aguardar 30 minutos antes de tentar novamente');
+            console.log('3. Usar QR Code como alternativa');
+            console.log('4. Verificar se o número tem WhatsApp ativo');
             
-            // Pergunta se quer tentar novamente ou usar QR
+            // Reset automático de sessão em alguns casos
+            if (error.message.includes('401') || error.message.includes('invalid')) {
+                console.log('\n🔄 Executando reset automático de sessão...');
+                this.authManager.clearSession();
+            }
+            
+            // Opção para usuário
             this.inputManager.createInterface();
-            const choice = await this.inputManager.question('\n❓ Tentar novamente (1) ou usar QR Code (2)? ');
+            console.log('\n❓ OPÇÕES:');
+            console.log('1 - Tentar novamente com outro número');
+            console.log('2 - Usar QR Code');
+            console.log('3 - Sair e tentar mais tarde');
+            
+            const choice = await this.inputManager.question('Digite sua escolha (1/2/3): ');
             this.inputManager.closeInterface();
             
-            if (choice === '1') {
-                // Tenta novamente
-                setTimeout(() => this.handlePairingCode(), 2000);
-            } else {
-                // Volta para QR code
-                console.log('🔄 Mudando para método QR Code...\n');
-                this.authManager.setConnectionMethod('qr');
+            switch(choice) {
+                case '1':
+                    // Permite inserir novo número
+                    console.log('\n🔄 Vamos tentar com outro número...');
+                    const newNumber = await this.inputManager.askPhoneNumber();
+                    this.authManager.setPhoneNumber(newNumber);
+                    setTimeout(() => this.handlePairingCode(), 3000);
+                    break;
+                case '2':
+                    console.log('🔄 Mudando para método QR Code...\n');
+                    this.authManager.setConnectionMethod('qr');
+                    // Força regeneração do QR
+                    this.pairingAttempted = false;
+                    break;
+                case '3':
+                default:
+                    console.log('👋 Saindo... Tente novamente mais tarde.');
+                    process.exit(0);
             }
         }
     }
