@@ -65,6 +65,28 @@ class MessageHandler {
                     await this.sendStepManagementMenu(userNumber);
                     return;
                 }
+
+                // Verifica se é comando !criarcondicional
+                if (messageText.toLowerCase().startsWith('!criarcondicional')) {
+                    const parts = messageText.split(' ');
+                    if (parts.length >= 4) {
+                        const stepId = parts[1];
+                        const showAfter = parts[2];
+                        const stepName = parts.slice(3).join(' ');
+                        
+                        this.videoHandler.addConditionalStep(stepId, showAfter, stepName);
+                        
+                        await this.sendTypingEffect(userNumber, 1500);
+                        await this.sock.sendMessage(userNumber, {
+                            text: `✅ *Etapa condicional criada!*\n\n📝 **Nome:** ${stepName}\n🔗 **Aparece após:** ${showAfter}\n🆔 **ID:** ${stepId}\n\n💡 Agora envie um vídeo com "!uparvideo" e escolha esta etapa, ou use !gerenciar para configurar.`
+                        });
+                    } else {
+                        await this.sock.sendMessage(userNumber, {
+                            text: '❌ *Formato incorreto*\n\n📋 **Como usar:**\n!criarcondicional [id] [etapa-requisito] [nome]\n\n💡 **Exemplo:**\n!criarcondicional promocoes suporte Promoções Especiais'
+                        });
+                    }
+                    return;
+                }
                 
                 // Verifica se é resposta numérica (1, 2, etc.)
                 if (this.isNumericResponse(messageText)) {
@@ -187,7 +209,7 @@ class MessageHandler {
     }
 
     /**
-     * Envia menu fallback com emojis numerados (SEMPRE FUNCIONA)
+     * Envia menu fallback com emojis numerados (DINÂMICO baseado no usuário)
      * @param {string} userNumber - Número do usuário
      */
     async sendFallbackMenu(userNumber) {
@@ -195,24 +217,53 @@ class MessageHandler {
             // Efeito de digitação antes do menu
             await this.sendTypingEffect(userNumber, 1800);
             
+            // Obtém etapas disponíveis para este usuário
+            const availableSteps = this.videoHandler.getAvailableStepsForUser(userNumber);
+            const conditionalSteps = this.videoHandler.videoConfig.flow?.conditional || {};
+            
+            let menuOptions = '';
+            let optionCount = 1;
+            
+            // Adiciona opções baseadas nas etapas disponíveis
+            for (const stepId of availableSteps) {
+                let stepName = '';
+                let stepDescription = '';
+                
+                switch(stepId) {
+                    case 'suporte':
+                        stepName = 'Suporte 🌐';
+                        stepDescription = 'Falar com nosso suporte técnico';
+                        break;
+                    case 'info_bot':
+                        stepName = 'Informações Bot 🤖';
+                        stepDescription = 'Conhecer mais sobre este bot';
+                        break;
+                    default:
+                        // Etapa condicional personalizada
+                        if (conditionalSteps[stepId]) {
+                            stepName = `${conditionalSteps[stepId].name} ✨`;
+                            stepDescription = `Opção especial desbloqueada!`;
+                        }
+                }
+                
+                if (stepName) {
+                    menuOptions += `*${optionCount}️⃣ ${stepName}*\n${stepDescription}\n\n`;
+                    optionCount++;
+                }
+            }
+            
             const fallbackMessage = `🎉 *Olá! Bem-vindo ao nosso atendimento!*
 
 Escolha uma das opções digitando o número correspondente:
 
-*1️⃣ Suporte 🌐*
-Falar com nosso suporte técnico
-
-*2️⃣ Informações Bot 🤖*
-Conhecer mais sobre este bot
-
-_Digite 1 ou 2 para continuar_
+${menuOptions}_Digite o número para continuar_
 
 ---
 💡 _Dica: Digite "menu" a qualquer momento para ver as opções novamente_
 🎥 _Envie um vídeo com "!uparvideo" para adicionar vídeos ao bot_`;
 
             await this.sock.sendMessage(userNumber, { text: fallbackMessage });
-            console.log(`✅ Menu fallback enviado para ${userNumber}`);
+            console.log(`✅ Menu dinâmico enviado para ${userNumber} (${availableSteps.length} opções)`);
 
         } catch (error) {
             console.error('❌ Erro ao enviar menu fallback:', error);
@@ -220,31 +271,30 @@ _Digite 1 ou 2 para continuar_
     }
 
     /**
-     * Processa resposta numérica do usuário
+     * Processa resposta numérica do usuário (DINÂMICA)
      * @param {string} userNumber - Número do usuário
-     * @param {string} option - Opção selecionada (1 ou 2)
+     * @param {string} option - Opção selecionada
      */
     async handleNumericResponse(userNumber, option) {
         try {
-            let buttonId = '';
+            // Obtém etapas disponíveis para mapear o número
+            const availableSteps = this.videoHandler.getAvailableStepsForUser(userNumber);
+            const optionIndex = parseInt(option) - 1;
             
-            switch (option) {
-                case '1':
-                    buttonId = 'suporte';
-                    console.log(`🔢 Usuário ${userNumber} escolheu opção 1 (Suporte)`);
-                    break;
-                case '2':
-                    buttonId = 'info_bot';
-                    console.log(`🔢 Usuário ${userNumber} escolheu opção 2 (Info Bot)`);
-                    break;
-                default:
-                    await this.sock.sendMessage(userNumber, {
-                        text: '❓ Opção inválida. Digite "menu" para ver as opções disponíveis ou escolha 1 ou 2.'
-                    });
-                    return;
+            if (optionIndex < 0 || optionIndex >= availableSteps.length) {
+                await this.sock.sendMessage(userNumber, {
+                    text: `❓ Opção inválida. Digite "menu" para ver as opções disponíveis (1-${availableSteps.length}).`
+                });
+                return;
             }
-
-            await this.handleButtonResponse(userNumber, buttonId);
+            
+            const selectedStepId = availableSteps[optionIndex];
+            console.log(`🔢 Usuário ${userNumber} escolheu opção ${option} (${selectedStepId})`);
+            
+            // Registra que o usuário visitou esta etapa
+            this.videoHandler.trackUserNavigation(userNumber, selectedStepId);
+            
+            await this.handleButtonResponse(userNumber, selectedStepId);
 
         } catch (error) {
             console.error('❌ Erro ao processar resposta numérica:', error);
@@ -347,7 +397,19 @@ Sábado: 08:00 às 12:00
                     break;
 
                 default:
-                    responseMessage = '❓ Opção não reconhecida. Digite "menu" para ver as opções disponíveis.';
+                    // Verifica se é uma etapa condicional
+                    const conditionalSteps = this.videoHandler.videoConfig.flow?.conditional || {};
+                    if (conditionalSteps[buttonId]) {
+                        // Envia vídeo da etapa condicional se disponível
+                        const sentConditionalVideo = await this.sendVideoIfAvailable(userNumber, buttonId);
+                        if (sentConditionalVideo) {
+                            return; // Só envia o vídeo
+                        } else {
+                            responseMessage = `✨ *${conditionalSteps[buttonId].name}*\n\nℹ️ Esta etapa especial está em configuração.\n\n🔧 Use o comando !gerenciar para adicionar conteúdo.`;
+                        }
+                    } else {
+                        responseMessage = '❓ Opção não reconhecida. Digite "menu" para ver as opções disponíveis.';
+                    }
             }
 
             await this.sock.sendMessage(userNumber, { text: responseMessage });

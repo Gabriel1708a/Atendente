@@ -60,7 +60,19 @@ class VideoHandler {
                 welcome: "🎥 *Vídeo de boas-vindas*",
                 suporte: "🎥 *Vídeo informativo sobre suporte*",
                 info_bot: "🎥 *Informações sobre o bot*"
-            }
+            },
+            // Sistema de fluxo condicional
+            flow: {
+                // Etapas que aparecem no menu principal
+                mainMenu: ['suporte', 'info_bot'],
+                // Etapas condicionais: aparecem apenas após visitar certas seções
+                conditional: {
+                    // Exemplo: etapa4 só aparece depois de visitar suporte
+                    // 'etapa4': { showAfter: 'suporte', name: 'Nova Opção' }
+                }
+            },
+            // Rastreamento de navegação por usuário
+            userNavigation: {}
         };
     }
 
@@ -419,6 +431,101 @@ _Descartar este vídeo_
      */
     getCustomSections() {
         return this.videoConfig.custom || [];
+    }
+
+    /**
+     * Registra que usuário visitou uma etapa
+     * @param {string} userNumber - Número do usuário
+     * @param {string} stepId - ID da etapa visitada
+     */
+    trackUserNavigation(userNumber, stepId) {
+        if (!this.videoConfig.userNavigation) {
+            this.videoConfig.userNavigation = {};
+        }
+        
+        if (!this.videoConfig.userNavigation[userNumber]) {
+            this.videoConfig.userNavigation[userNumber] = {
+                visited: [],
+                lastVisit: Date.now()
+            };
+        }
+        
+        const userNav = this.videoConfig.userNavigation[userNumber];
+        
+        // Adiciona etapa se não foi visitada antes
+        if (!userNav.visited.includes(stepId)) {
+            userNav.visited.push(stepId);
+            userNav.lastVisit = Date.now();
+            this.saveVideoConfig();
+            console.log(`📍 Usuário ${userNumber} visitou etapa: ${stepId}`);
+        }
+    }
+
+    /**
+     * Verifica se usuário já visitou uma etapa específica
+     * @param {string} userNumber - Número do usuário
+     * @param {string} stepId - ID da etapa
+     * @returns {boolean}
+     */
+    hasUserVisited(userNumber, stepId) {
+        const userNav = this.videoConfig.userNavigation?.[userNumber];
+        return userNav ? userNav.visited.includes(stepId) : false;
+    }
+
+    /**
+     * Obtém etapas disponíveis para um usuário específico
+     * @param {string} userNumber - Número do usuário
+     * @returns {Array} Lista de etapas disponíveis
+     */
+    getAvailableStepsForUser(userNumber) {
+        const mainSteps = this.videoConfig.flow?.mainMenu || ['suporte', 'info_bot'];
+        const conditionalSteps = this.videoConfig.flow?.conditional || {};
+        
+        const availableSteps = [...mainSteps];
+        
+        // Verifica etapas condicionais
+        for (const [stepId, condition] of Object.entries(conditionalSteps)) {
+            if (this.hasUserVisited(userNumber, condition.showAfter)) {
+                availableSteps.push(stepId);
+            }
+        }
+        
+        return availableSteps;
+    }
+
+    /**
+     * Adiciona etapa condicional
+     * @param {string} stepId - ID da nova etapa
+     * @param {string} showAfterStep - Etapa que deve ser visitada antes
+     * @param {string} stepName - Nome da etapa
+     * @param {string} videoPath - Caminho do vídeo (opcional)
+     */
+    addConditionalStep(stepId, showAfterStep, stepName, videoPath = null) {
+        if (!this.videoConfig.flow) {
+            this.videoConfig.flow = { mainMenu: ['suporte', 'info_bot'], conditional: {} };
+        }
+        
+        if (!this.videoConfig.flow.conditional) {
+            this.videoConfig.flow.conditional = {};
+        }
+        
+        this.videoConfig.flow.conditional[stepId] = {
+            showAfter: showAfterStep,
+            name: stepName,
+            videoPath: videoPath
+        };
+        
+        // Adiciona legenda padrão se não existir
+        if (!this.videoConfig.captions) {
+            this.videoConfig.captions = {};
+        }
+        
+        if (!this.videoConfig.captions[stepId]) {
+            this.videoConfig.captions[stepId] = `🎥 *${stepName}*`;
+        }
+        
+        this.saveVideoConfig();
+        console.log(`✅ Etapa condicional '${stepName}' criada - aparece após '${showAfterStep}'`);
     }
 
     /**
