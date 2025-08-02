@@ -33,6 +33,12 @@ class MessageHandler {
                 }
             }
             
+            // Verifica se é resposta de botão interativo
+            if (messageType === 'buttonsResponseMessage') {
+                await this.handleButtonMessage(m);
+                return;
+            }
+            
             // Verifica se é uma mensagem de texto
             if (messageType === 'conversation' || messageType === 'extendedTextMessage') {
                 const messageText = m.message.conversation || m.message.extendedTextMessage?.text || '';
@@ -418,15 +424,12 @@ Sábado: 08:00 às 12:00
                     break;
 
                 case 'info_bot':
-                    // Envia apenas vídeo se disponível, sem texto automático
-                    const sentBotVideo = await this.sendVideoIfAvailable(userNumber, 'info_bot');
-                    if (sentBotVideo) {
-                        // Se tem vídeo, envia só o vídeo com legenda personalizada
-                        return; // Não envia mais nada
-                    } else {
-                        // Se não tem vídeo, não envia nada (etapa vazia)
-                        responseMessage = `ℹ️ *Esta etapa está em configuração*\n\n🔧 Use o comando !gerenciar para configurar esta seção.`;
-                    }
+                    // Envia vídeo primeiro se disponível
+                    await this.sendVideoIfAvailable(userNumber, 'info_bot');
+                    
+                    // Envia menu interativo com botões
+                    await this.sendBotInfoButtons(userNumber);
+                    return; // Não envia mensagem de texto simples
                     break;
 
                 default:
@@ -838,6 +841,230 @@ Aparece apenas após visitar outra etapa
         }
         
         this.videoHandler.clearUserState(userNumber);
+    }
+
+    /**
+     * Envia menu de informações do bot com botões interativos
+     * @param {string} userNumber - Número do usuário
+     */
+    async sendBotInfoButtons(userNumber) {
+        try {
+            await this.sendTypingEffect(userNumber, 1500);
+
+            const buttons = [
+                {
+                    buttonId: 'bot_versao', 
+                    buttonText: {displayText: '🤖 Versão do Bot'}, 
+                    type: 1
+                },
+                {
+                    buttonId: 'bot_recursos', 
+                    buttonText: {displayText: '⚙️ Recursos'}, 
+                    type: 1
+                },
+                {
+                    buttonId: 'bot_comandos', 
+                    buttonText: {displayText: '📜 Comandos'}, 
+                    type: 1
+                },
+                {
+                    buttonId: 'bot_suporte', 
+                    buttonText: {displayText: '🆘 Suporte Técnico'}, 
+                    type: 1
+                },
+                {
+                    buttonId: 'bot_sobre', 
+                    buttonText: {displayText: 'ℹ️ Sobre o Sistema'}, 
+                    type: 1
+                }
+            ];
+
+            const buttonMessage = {
+                text: `🤖 *INFORMAÇÕES DO BOT*
+
+Selecione uma opção para obter informações detalhadas:`,
+                footer: '🔧 Bot de Atendimento WhatsApp v2.1',
+                buttons: buttons,
+                headerType: 1
+            };
+
+            await this.sock.sendMessage(userNumber, buttonMessage);
+            console.log(`✅ Menu de botões enviado para ${userNumber}`);
+
+        } catch (error) {
+            console.error('❌ Erro ao enviar botões:', error);
+            // Fallback para menu texto se botões falharem
+            await this.sock.sendMessage(userNumber, {
+                text: `🤖 *INFORMAÇÕES DO BOT*
+
+📋 **Opções disponíveis:**
+1️⃣ Versão do Bot
+2️⃣ Recursos
+3️⃣ Comandos
+4️⃣ Suporte Técnico 
+5️⃣ Sobre o Sistema
+
+_Digite o número da opção desejada_`
+            });
+        }
+    }
+
+    /**
+     * Processa resposta dos botões interativos
+     * @param {Object} message - Mensagem com resposta do botão
+     */
+    async handleButtonMessage(message) {
+        try {
+            const userNumber = message.key.remoteJid;
+            const buttonResponse = message.message.buttonsResponseMessage;
+            const buttonId = buttonResponse.selectedButtonId;
+
+            console.log(`🔘 Botão pressionado: ${buttonId} por ${userNumber}`);
+
+            await this.sendTypingEffect(userNumber, 1500);
+
+            let responseText = '';
+
+            switch(buttonId) {
+                case 'bot_versao':
+                    responseText = `🤖 *VERSÃO DO BOT*
+
+📦 **Versão Atual:** v2.1.0
+📅 **Lançamento:** Janeiro 2025
+🔄 **Última Atualização:** Sistema de Etapas Condicionais
+
+✨ **Novidades v2.1:**
+• Sistema de etapas condicionais
+• Gerenciamento avançado de etapas
+• Preservação automática de sessão
+• QR Code persistente
+• Upload e gerenciamento de vídeos
+
+📈 **Próximas Atualizações:**
+• Botões interativos aprimorados
+• Sistema de agendamento
+• Relatórios de atendimento`;
+                    break;
+
+                case 'bot_recursos':
+                    responseText = `⚙️ *RECURSOS DO BOT*
+
+🎯 **Funcionalidades Principais:**
+• 🎥 Sistema de vídeos integrado
+• 🔄 Etapas condicionais dinâmicas
+• 🎛️ Gerenciamento de conteúdo
+• 📱 Conexão QR Code + Pairing Code
+• 🤖 Efeitos de digitação realistas
+
+🛠️ **Comandos Administrativos:**
+• !gerenciar - Administrar etapas
+• !uparvideo - Upload de vídeos
+• !criarcondicional - Etapas condicionais
+• !listar - Ver todas as etapas
+
+💡 **Tecnologias:**
+• Node.js 18+
+• Baileys WhatsApp Library
+• Sistema modular escalável`;
+                    break;
+
+                case 'bot_comandos':
+                    responseText = `📜 *COMANDOS DISPONÍVEIS*
+
+👥 **Comandos do Usuário:**
+• "oi" ou "menu" - Menu principal
+• Números (1, 2, 3...) - Navegação rápida
+
+🔧 **Comandos Administrativos:**
+• !gerenciar - Menu de administração
+• !criar - Criar nova etapa
+• !editar [número] - Editar etapa
+• !excluir [número] - Excluir etapa
+• !legenda [número] - Editar legenda
+• !listar - Listar todas as etapas
+
+🎥 **Comandos de Vídeo:**
+• !uparvideo - Envie com vídeo para upload
+• !criarcondicional [id] [requisito] [nome]
+
+💡 **Exemplos:**
+• !editar 2
+• !legenda 1
+• !criarcondicional promocoes suporte Promoções`;
+                    break;
+
+                case 'bot_suporte':
+                    responseText = `🆘 *SUPORTE TÉCNICO*
+
+📞 **Como Obter Ajuda:**
+
+🔧 **Problemas Comuns:**
+• Sessão perdida → npm run clear-session
+• Loop de reconexão → Aguardar 3 tentativas
+• QR não aparece → Verificar conexão
+
+📚 **Documentação:**
+• README.md - Guia completo
+• TROUBLESHOOTING.md - Resolução de problemas  
+• PHONE_EXAMPLES.md - Formatos de telefone
+
+💬 **Contato:**
+Para suporte especializado, entre em contato com o administrador do sistema.
+
+🚀 **Recursos de Auto-Ajuda:**
+• Logs detalhados no terminal
+• Mensagens de erro explicativas
+• Sistema de recuperação automática`;
+                    break;
+
+                case 'bot_sobre':
+                    responseText = `ℹ️ *SOBRE O SISTEMA*
+
+🎯 **Missão:**
+Fornecer atendimento automatizado inteligente e eficiente via WhatsApp.
+
+💡 **Características:**
+• Interface conversacional natural
+• Sistema de navegação intuitivo
+• Conteúdo multimídia (vídeos)
+• Fluxos personalizáveis
+• Escalabilidade empresarial
+
+🏗️ **Arquitetura:**
+• Modular e extensível
+• Handlers especializados
+• Configuração flexível
+• Logs estruturados
+• Recuperação de falhas
+
+🔒 **Segurança:**
+• Sessões criptografadas
+• Validação de entradas
+• Proteção contra loops
+• Backup automático
+
+⭐ **Diferenciais:**
+• Etapas condicionais únicas
+• Preservação inteligente de sessão
+• Interface administrativa completa`;
+                    break;
+
+                default:
+                    responseText = '❓ Opção não reconhecida. Tente novamente.';
+            }
+
+            await this.sock.sendMessage(userNumber, { text: responseText });
+
+            // Oferece voltar ao menu
+            setTimeout(async () => {
+                await this.sock.sendMessage(userNumber, {
+                    text: '🔄 _Digite "menu" para voltar ao menu principal_'
+                });
+            }, 2000);
+
+        } catch (error) {
+            console.error('❌ Erro ao processar resposta do botão:', error);
+        }
     }
 }
 
