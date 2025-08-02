@@ -20,6 +20,7 @@ class WhatsAppBot {
         this.messageHandler = null;
         this.isConnected = false;
         this.pairingAttempted = false; // Controla tentativas de pareamento
+        this.sessionInvalidated = false; // Flag para forçar QR quando sessão é inválida
         
         // Logger configurado
         this.logger = P({ level: 'silent' }); // Remove logs internos do Baileys
@@ -122,8 +123,10 @@ class WhatsAppBot {
             if (qr && !this.pairingAttempted) {
                 console.log(`🔍 Método configurado: ${method}`);
                 
-                if (method === 'qr' || !method) {
+                // Se sessão foi invalidada, força QR Code
+                if (this.sessionInvalidated || method === 'qr' || !method) {
                     this.displayCustomQR(qr);
+                    this.sessionInvalidated = false; // Reset flag
                 } else if (method === 'code') {
                     // Para método código, tenta imediatamente quando QR é gerado
                     console.log('🚀 QR gerado! Tentando pareamento por código...');
@@ -312,15 +315,22 @@ class WhatsAppBot {
      * @param {Object} lastDisconnect - Informações da última desconexão
      */
     async handleDisconnection(lastDisconnect) {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        const errorReason = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = errorReason !== DisconnectReason.loggedOut;
         
         if (lastDisconnect?.error) {
-            const errorReason = lastDisconnect.error.output?.statusCode;
             
             switch (errorReason) {
                 case DisconnectReason.badSession:
                     console.log('📱 Sessão inválida detectada.');
-                    console.log('💡 Use "npm run clear-session" se necessário');
+                    console.log('💡 Gerando novo QR Code...');
+                    this.sessionInvalidated = true; // Marca para forçar QR
+                    // Força reconexão para gerar QR Code
+                    setTimeout(() => {
+                        console.log('🔄 Reiniciando para gerar QR Code...');
+                        this.connect();
+                    }, 2000);
+                    return; // Não continua o fluxo normal
                     break;
                     
                 case DisconnectReason.connectionClosed:
@@ -338,7 +348,14 @@ class WhatsAppBot {
                     
                 case DisconnectReason.loggedOut:
                     console.log('🚪 Deslogado do WhatsApp. QR Code será necessário');
-                    console.log('💡 Sessão mantida - escaneie QR novamente');
+                    console.log('💡 Sessão mantida - gerando novo QR...');
+                    this.sessionInvalidated = true; // Marca para forçar QR
+                    // Força reconexão para gerar QR Code
+                    setTimeout(() => {
+                        console.log('🔄 Reiniciando para gerar QR Code...');
+                        this.connect();
+                    }, 2000);
+                    return; // Não continua o fluxo normal
                     break;
                     
                 case DisconnectReason.restartRequired:
