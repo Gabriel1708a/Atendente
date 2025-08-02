@@ -24,6 +24,8 @@ class MessageHandler {
             const messageType = Object.keys(m.message)[0];
             const userNumber = m.key.remoteJid;
             
+            console.log(`📥 Tipo de mensagem recebida: ${messageType} de ${userNumber}`);
+            
             // Verifica se é comando !uparvideo em vídeo
             if (messageType === 'videoMessage') {
                 const caption = m.message.videoMessage?.caption || '';
@@ -35,6 +37,7 @@ class MessageHandler {
             
             // Verifica se é resposta de botão interativo
             if (messageType === 'buttonsResponseMessage') {
+                console.log(`🔘 Resposta de botão detectada de ${userNumber}`);
                 await this.handleButtonMessage(m);
                 return;
             }
@@ -849,6 +852,7 @@ Aparece apenas após visitar outra etapa
      */
     async sendBotInfoButtons(userNumber) {
         try {
+            console.log(`🔘 Tentando enviar botões para ${userNumber}...`);
             await this.sendTypingEffect(userNumber, 1500);
 
             const buttons = [
@@ -879,6 +883,7 @@ Aparece apenas após visitar outra etapa
                 }
             ];
 
+            // Tenta formato novo primeiro
             const buttonMessage = {
                 text: `🤖 *INFORMAÇÕES DO BOT*
 
@@ -888,14 +893,53 @@ Selecione uma opção para obter informações detalhadas:`,
                 headerType: 1
             };
 
-            await this.sock.sendMessage(userNumber, buttonMessage);
-            console.log(`✅ Menu de botões enviado para ${userNumber}`);
+            // Formato alternativo se o primeiro falhar
+            const alternativeButtonMessage = {
+                text: `🤖 *INFORMAÇÕES DO BOT*
+
+Selecione uma opção para obter informações detalhadas:`,
+                footer: '🔧 Bot de Atendimento WhatsApp v2.1',
+                templateButtons: buttons.map((btn, index) => ({
+                    index: index + 1,
+                    quickReplyButton: {
+                        displayText: btn.buttonText.displayText,
+                        id: btn.buttonId
+                    }
+                }))
+            };
+
+            console.log(`📋 Tentando formato padrão...`);
+            
+            let result;
+            try {
+                result = await this.sock.sendMessage(userNumber, buttonMessage);
+                console.log(`✅ Formato padrão funcionou!`);
+            } catch (firstError) {
+                console.log(`⚠️ Formato padrão falhou, tentando alternativo...`);
+                console.log(`📋 Estrutura alternativa:`, JSON.stringify(alternativeButtonMessage, null, 2));
+                result = await this.sock.sendMessage(userNumber, alternativeButtonMessage);
+                console.log(`✅ Formato alternativo funcionou!`);
+            }
+            
+            console.log(`✅ Resultado do envio:`, JSON.stringify(result, null, 2));
+            console.log(`✅ Menu de botões enviado com sucesso para ${userNumber}`);
 
         } catch (error) {
-            console.error('❌ Erro ao enviar botões:', error);
+            console.error('❌ ERRO DETALHADO ao enviar botões:');
+            console.error('Tipo do erro:', error.constructor.name);
+            console.error('Mensagem:', error.message);
+            console.error('Stack:', error.stack);
+            
+            if (error.data) {
+                console.error('Dados do erro:', JSON.stringify(error.data, null, 2));
+            }
+            
+            console.log(`🔄 Enviando menu fallback para ${userNumber}...`);
+            
             // Fallback para menu texto se botões falharem
-            await this.sock.sendMessage(userNumber, {
-                text: `🤖 *INFORMAÇÕES DO BOT*
+            try {
+                await this.sock.sendMessage(userNumber, {
+                    text: `🤖 *INFORMAÇÕES DO BOT*
 
 📋 **Opções disponíveis:**
 1️⃣ Versão do Bot
@@ -904,8 +948,14 @@ Selecione uma opção para obter informações detalhadas:`,
 4️⃣ Suporte Técnico 
 5️⃣ Sobre o Sistema
 
-_Digite o número da opção desejada_`
-            });
+_Digite o número da opção desejada_
+
+⚠️ *Nota: Os botões interativos não estão disponíveis no momento*`
+                });
+                console.log(`✅ Menu fallback enviado para ${userNumber}`);
+            } catch (fallbackError) {
+                console.error('❌ Erro também no fallback:', fallbackError);
+            }
         }
     }
 
