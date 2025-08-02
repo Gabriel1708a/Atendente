@@ -42,6 +42,13 @@ class MessageHandler {
                 return;
             }
             
+            // Verifica se é resposta de lista interativa
+            if (messageType === 'listResponseMessage') {
+                console.log(`📋 Resposta de lista detectada de ${userNumber}`);
+                await this.handleListMessage(m);
+                return;
+            }
+            
             // Verifica se é uma mensagem de texto
             if (messageType === 'conversation' || messageType === 'extendedTextMessage') {
                 const messageText = m.message.conversation || m.message.extendedTextMessage?.text || '';
@@ -893,19 +900,24 @@ Selecione uma opção para obter informações detalhadas:`,
                 headerType: 1
             };
 
-            // Formato alternativo se o primeiro falhar
-            const alternativeButtonMessage = {
+            // Formato alternativo: List Message (mais compatível)
+            const listMessage = {
                 text: `🤖 *INFORMAÇÕES DO BOT*
 
 Selecione uma opção para obter informações detalhadas:`,
                 footer: '🔧 Bot de Atendimento WhatsApp v2.1',
-                templateButtons: buttons.map((btn, index) => ({
-                    index: index + 1,
-                    quickReplyButton: {
-                        displayText: btn.buttonText.displayText,
-                        id: btn.buttonId
-                    }
-                }))
+                title: 'Menu de Opções',
+                buttonText: 'Ver Opções',
+                sections: [{
+                    title: 'Informações Disponíveis',
+                    rows: [
+                        {id: 'bot_versao', title: '🤖 Versão do Bot', description: 'Informações de versão e atualizações'},
+                        {id: 'bot_recursos', title: '⚙️ Recursos', description: 'Lista completa de funcionalidades'},
+                        {id: 'bot_comandos', title: '📜 Comandos', description: 'Guia de todos os comandos'},
+                        {id: 'bot_suporte', title: '🆘 Suporte Técnico', description: 'Ajuda e troubleshooting'},
+                        {id: 'bot_sobre', title: 'ℹ️ Sobre o Sistema', description: 'Missão e características'}
+                    ]
+                }]
             };
 
             console.log(`📋 Tentando formato padrão...`);
@@ -913,12 +925,18 @@ Selecione uma opção para obter informações detalhadas:`,
             let result;
             try {
                 result = await this.sock.sendMessage(userNumber, buttonMessage);
+                
+                // Verifica se realmente enviou botões (não apenas texto)
+                if (result.message.extendedTextMessage && !result.message.buttonsMessage) {
+                    throw new Error('Botões não suportados - apenas texto foi enviado');
+                }
+                
                 console.log(`✅ Formato padrão funcionou!`);
             } catch (firstError) {
-                console.log(`⚠️ Formato padrão falhou, tentando alternativo...`);
-                console.log(`📋 Estrutura alternativa:`, JSON.stringify(alternativeButtonMessage, null, 2));
-                result = await this.sock.sendMessage(userNumber, alternativeButtonMessage);
-                console.log(`✅ Formato alternativo funcionou!`);
+                console.log(`⚠️ Formato padrão falhou (${firstError.message}), tentando List Message...`);
+                console.log(`📋 Estrutura List:`, JSON.stringify(listMessage, null, 2));
+                result = await this.sock.sendMessage(userNumber, listMessage);
+                console.log(`✅ List Message funcionou!`);
             }
             
             console.log(`✅ Resultado do envio:`, JSON.stringify(result, null, 2));
@@ -1114,6 +1132,33 @@ Fornecer atendimento automatizado inteligente e eficiente via WhatsApp.
 
         } catch (error) {
             console.error('❌ Erro ao processar resposta do botão:', error);
+        }
+    }
+
+    /**
+     * Processa resposta das listas interativas
+     * @param {Object} message - Mensagem com resposta da lista
+     */
+    async handleListMessage(message) {
+        try {
+            const userNumber = message.key.remoteJid;
+            const listResponse = message.message.listResponseMessage;
+            const selectedId = listResponse.singleSelectReply.selectedRowId;
+
+            console.log(`📋 Lista selecionada: ${selectedId} por ${userNumber}`);
+
+            // Usa a mesma lógica dos botões
+            await this.handleButtonMessage({
+                key: message.key,
+                message: {
+                    buttonsResponseMessage: {
+                        selectedButtonId: selectedId
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('❌ Erro ao processar resposta da lista:', error);
         }
     }
 }
