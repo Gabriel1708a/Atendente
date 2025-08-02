@@ -326,7 +326,33 @@ ${menuOptions}_Digite o número para continuar_
      */
     async handleNumericResponse(userNumber, option) {
         try {
-            // Obtém etapas disponíveis para mapear o número
+            // Verifica se é opção do menu Info Bot (1-5)
+            if (['1', '2', '3', '4', '5'].includes(option)) {
+                // Mapeia opções do Info Bot
+                const infoBotOptions = {
+                    '1': 'bot_versao',
+                    '2': 'bot_recursos', 
+                    '3': 'bot_comandos',
+                    '4': 'bot_suporte',
+                    '5': 'bot_sobre'
+                };
+                
+                const buttonId = infoBotOptions[option];
+                if (buttonId) {
+                    console.log(`🔢 Info Bot: Usuário ${userNumber} escolheu opção ${option} (${buttonId})`);
+                    await this.handleButtonMessage({
+                        key: { remoteJid: userNumber },
+                        message: {
+                            buttonsResponseMessage: {
+                                selectedButtonId: buttonId
+                            }
+                        }
+                    });
+                    return;
+                }
+            }
+            
+            // Lógica original para menu principal
             const availableSteps = this.videoHandler.getAvailableStepsForUser(userNumber);
             const optionIndex = parseInt(option) - 1;
             
@@ -338,7 +364,7 @@ ${menuOptions}_Digite o número para continuar_
             }
             
             const selectedStepId = availableSteps[optionIndex];
-            console.log(`🔢 Usuário ${userNumber} escolheu opção ${option} (${selectedStepId})`);
+            console.log(`🔢 Menu Principal: Usuário ${userNumber} escolheu opção ${option} (${selectedStepId})`);
             
             // Registra que o usuário visitou esta etapa
             this.videoHandler.trackUserNavigation(userNumber, selectedStepId);
@@ -437,8 +463,8 @@ Sábado: 08:00 às 12:00
                     // Envia vídeo primeiro se disponível
                     await this.sendVideoIfAvailable(userNumber, 'info_bot');
                     
-                    // Envia menu interativo com botões
-                    await this.sendBotInfoButtons(userNumber);
+                    // Envia menu numerado garantido
+                    await this.sendBotInfoMenu(userNumber);
                     return; // Não envia mensagem de texto simples
                     break;
 
@@ -854,7 +880,46 @@ Aparece apenas após visitar outra etapa
     }
 
     /**
-     * Envia menu de informações do bot com botões interativos
+     * Envia menu de informações do bot (SEMPRE FUNCIONA)
+     * @param {string} userNumber - Número do usuário
+     */
+    async sendBotInfoMenu(userNumber) {
+        try {
+            await this.sendTypingEffect(userNumber, 1500);
+
+            const menuMessage = `🤖 *INFORMAÇÕES DO BOT*
+
+📋 **Selecione uma opção:**
+
+*1️⃣ Versão do Bot* 
+   Informações de versão e atualizações
+
+*2️⃣ Recursos*
+   Lista completa de funcionalidades
+
+*3️⃣ Comandos*
+   Guia de todos os comandos disponíveis
+
+*4️⃣ Suporte Técnico*
+   Ajuda e troubleshooting
+
+*5️⃣ Sobre o Sistema*
+   Missão e características
+
+---
+💡 _Digite o número da opção desejada (1-5)_
+🔄 _Digite "menu" para voltar ao menu principal_`;
+
+            await this.sock.sendMessage(userNumber, { text: menuMessage });
+            console.log(`✅ Menu Info Bot enviado para ${userNumber}`);
+
+        } catch (error) {
+            console.error('❌ Erro ao enviar menu Info Bot:', error);
+        }
+    }
+
+    /**
+     * [BACKUP] Envia menu de informações do bot com botões interativos
      * @param {string} userNumber - Número do usuário
      */
     async sendBotInfoButtons(userNumber) {
