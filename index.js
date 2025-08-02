@@ -183,7 +183,8 @@ class WhatsAppBot {
         console.log('3️⃣  Toque em "Conectar um dispositivo"');
         console.log('4️⃣  Escaneie o código QR acima');
         console.log('\n⏳ Aguardando escaneamento...');
-        console.log('💡 O QR Code permanecerá visível até a conexão\n');
+        console.log('💡 O QR Code permanecerá visível até a conexão');
+        console.log('🔒 Sessão será preservada automaticamente\n');
     }
 
     /**
@@ -289,12 +290,10 @@ class WhatsAppBot {
             console.log('   npm run clear-session  ← Limpa sessão corrompida');
             console.log('   npm start              ← Reinicia com QR Code');
             
-            // Reset automático de sessão em alguns casos
-            if (error.message.includes('401') || error.message.includes('invalid') || error.message.includes('Socket')) {
-                console.log('\n🔄 Executando reset automático de sessão...');
-                this.authManager.clearSession();
-                console.log('✅ Sessão limpa! Reinicie o bot: npm start');
-            }
+            // Não remove mais a sessão automaticamente
+            // Apenas reporta o erro para troubleshooting manual
+            console.log('\n💡 DICA: Se o problema persistir, use:');
+            console.log('   npm run clear-session    ← Remove sessão manualmente');
             
             // Não oferece mais opções - vai direto para QR Code
             console.log('\n🔄 Mudando automaticamente para QR Code (mais confiável)...');
@@ -320,8 +319,8 @@ class WhatsAppBot {
             
             switch (errorReason) {
                 case DisconnectReason.badSession:
-                    console.log('📱 Sessão inválida detectada. Reiniciando...');
-                    this.authManager.clearSession();
+                    console.log('📱 Sessão inválida detectada.');
+                    console.log('💡 Use "npm run clear-session" se necessário');
                     break;
                     
                 case DisconnectReason.connectionClosed:
@@ -334,11 +333,12 @@ class WhatsAppBot {
                     
                 case DisconnectReason.connectionReplaced:
                     console.log('🔄 Conexão substituída em outro dispositivo');
+                    console.log('💡 Sessão mantida - apenas reconecte');
                     break;
                     
                 case DisconnectReason.loggedOut:
                     console.log('🚪 Deslogado do WhatsApp. QR Code será necessário');
-                    this.authManager.clearSession();
+                    console.log('💡 Sessão mantida - escaneie QR novamente');
                     break;
                     
                 case DisconnectReason.restartRequired:
@@ -416,7 +416,10 @@ class WhatsAppBot {
         if (this.sock) {
             await this.sock.logout();
         }
+        
         console.log('✅ Bot parado com sucesso!');
+        console.log('🔒 Sessão WhatsApp preservada');
+        console.log('💡 Próximo start reconectará automaticamente');
         process.exit(0);
     }
 }
