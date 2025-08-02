@@ -53,6 +53,13 @@ class MessageHandler {
                     await this.videoHandler.handleVideoPlacement(userNumber, messageText.trim());
                     return;
                 }
+
+                // Verifica estados de gerenciamento
+                const userState = this.videoHandler.getUserState(userNumber);
+                if (userState) {
+                    await this.handleUserStateMessage(userNumber, messageText, userState);
+                    return;
+                }
                 
                 // Verifica se é comando de ativação
                 if (this.isActivationCommand(messageText)) {
@@ -63,6 +70,32 @@ class MessageHandler {
                 // Verifica se é comando !gerenciar
                 if (messageText.toLowerCase().trim() === '!gerenciar') {
                     await this.sendStepManagementMenu(userNumber);
+                    return;
+                }
+
+                // Comandos do sistema de gerenciamento
+                if (messageText.toLowerCase().trim() === '!criar') {
+                    await this.handleCreateStep(userNumber);
+                    return;
+                }
+
+                if (messageText.toLowerCase().startsWith('!editar')) {
+                    await this.handleEditStep(userNumber, messageText);
+                    return;
+                }
+
+                if (messageText.toLowerCase().startsWith('!excluir')) {
+                    await this.handleDeleteStep(userNumber, messageText);
+                    return;
+                }
+
+                if (messageText.toLowerCase().startsWith('!legenda')) {
+                    await this.handleEditCaption(userNumber, messageText);
+                    return;
+                }
+
+                if (messageText.toLowerCase().trim() === '!listar') {
+                    await this.handleListSteps(userNumber);
                     return;
                 }
 
@@ -418,6 +451,393 @@ Sábado: 08:00 às 12:00
         } catch (error) {
             console.error('❌ Erro ao processar resposta do botão:', error);
         }
+    }
+
+    /**
+     * Manipula criação de nova etapa
+     * @param {string} userNumber - Número do usuário
+     */
+    async handleCreateStep(userNumber) {
+        try {
+            await this.sendTypingEffect(userNumber, 1500);
+            
+            const createMessage = `🆕 *CRIAR NOVA ETAPA*
+
+📝 **Escolha o tipo:**
+
+**1️⃣ Etapa Normal**
+Aparece sempre no menu principal
+
+**2️⃣ Etapa Condicional** 
+Aparece apenas após visitar outra etapa
+
+---
+💡 **Digite 1 ou 2 para continuar**`;
+
+            await this.sock.sendMessage(userNumber, { text: createMessage });
+            
+            // Marca usuário como aguardando tipo de etapa
+            this.videoHandler.setUserState(userNumber, 'awaiting_step_type');
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar !criar:', error);
+        }
+    }
+
+    /**
+     * Manipula edição de etapa
+     * @param {string} userNumber - Número do usuário
+     * @param {string} messageText - Comando completo
+     */
+    async handleEditStep(userNumber, messageText) {
+        try {
+            const parts = messageText.split(' ');
+            if (parts.length < 2) {
+                await this.sock.sendMessage(userNumber, {
+                    text: '❌ **Formato incorreto**\n\n📋 **Como usar:**\n!editar [número]\n\n💡 **Exemplo:** !editar 2'
+                });
+                return;
+            }
+
+            const stepNumber = parseInt(parts[1]);
+            const availableSteps = this.videoHandler.getAvailableStepsForUser(userNumber);
+            
+            if (stepNumber < 1 || stepNumber > availableSteps.length) {
+                await this.sock.sendMessage(userNumber, {
+                    text: `❌ **Etapa não encontrada**\n\nEtapas disponíveis: 1-${availableSteps.length}\n\n📜 Use !listar para ver todas as etapas`
+                });
+                return;
+            }
+
+            const stepId = availableSteps[stepNumber - 1];
+            await this.sendTypingEffect(userNumber, 1500);
+            
+            const editMessage = `✏️ **EDITAR ETAPA ${stepNumber}**\n\n🆔 **ID:** ${stepId}\n\n**O que deseja editar?**\n\n1️⃣ Nome da etapa\n2️⃣ Legenda do vídeo\n3️⃣ Substituir vídeo\n4️⃣ Remover vídeo\n\n---\n💡 Digite 1, 2, 3 ou 4`;
+
+            await this.sock.sendMessage(userNumber, { text: editMessage });
+            
+            // Armazena contexto de edição
+            this.videoHandler.setUserState(userNumber, 'editing_step', { stepId, stepNumber });
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar !editar:', error);
+        }
+    }
+
+    /**
+     * Manipula exclusão de etapa
+     * @param {string} userNumber - Número do usuário
+     * @param {string} messageText - Comando completo
+     */
+    async handleDeleteStep(userNumber, messageText) {
+        try {
+            const parts = messageText.split(' ');
+            if (parts.length < 2) {
+                await this.sock.sendMessage(userNumber, {
+                    text: '❌ **Formato incorreto**\n\n📋 **Como usar:**\n!excluir [número]\n\n💡 **Exemplo:** !excluir 3'
+                });
+                return;
+            }
+
+            const stepNumber = parseInt(parts[1]);
+            const availableSteps = this.videoHandler.getAvailableStepsForUser(userNumber);
+            
+            if (stepNumber < 1 || stepNumber > availableSteps.length) {
+                await this.sock.sendMessage(userNumber, {
+                    text: `❌ **Etapa não encontrada**\n\nEtapas disponíveis: 1-${availableSteps.length}\n\n📜 Use !listar para ver todas as etapas`
+                });
+                return;
+            }
+
+            const stepId = availableSteps[stepNumber - 1];
+            
+            // Não permite excluir etapas principais
+            if (['suporte', 'info_bot', 'welcome'].includes(stepId)) {
+                await this.sock.sendMessage(userNumber, {
+                    text: `⚠️ **Não é possível excluir etapas do sistema**\n\nEtapas protegidas: Suporte, Info Bot, Welcome\n\n💡 Use !editar para modificá-las`
+                });
+                return;
+            }
+
+            await this.sendTypingEffect(userNumber, 1500);
+            
+            const confirmMessage = `🗑️ **CONFIRMAR EXCLUSÃO**\n\n📝 **Etapa:** ${stepId}\n\n⚠️ **Esta ação não pode ser desfeita!**\n\n**Digite 'CONFIRMAR' para excluir ou qualquer outra coisa para cancelar**`;
+
+            await this.sock.sendMessage(userNumber, { text: confirmMessage });
+            
+            // Armazena contexto de exclusão
+            this.videoHandler.setUserState(userNumber, 'confirming_delete', { stepId, stepNumber });
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar !excluir:', error);
+        }
+    }
+
+    /**
+     * Manipula edição de legenda
+     * @param {string} userNumber - Número do usuário
+     * @param {string} messageText - Comando completo
+     */
+    async handleEditCaption(userNumber, messageText) {
+        try {
+            const parts = messageText.split(' ');
+            if (parts.length < 2) {
+                await this.sock.sendMessage(userNumber, {
+                    text: '❌ **Formato incorreto**\n\n📋 **Como usar:**\n!legenda [número]\n\n💡 **Exemplo:** !legenda 1'
+                });
+                return;
+            }
+
+            const stepNumber = parseInt(parts[1]);
+            const availableSteps = this.videoHandler.getAvailableStepsForUser(userNumber);
+            
+            if (stepNumber < 1 || stepNumber > availableSteps.length) {
+                await this.sock.sendMessage(userNumber, {
+                    text: `❌ **Etapa não encontrada**\n\nEtapas disponíveis: 1-${availableSteps.length}\n\n📜 Use !listar para ver todas as etapas`
+                });
+                return;
+            }
+
+            const stepId = availableSteps[stepNumber - 1];
+            const currentCaption = this.videoHandler.videoConfig.captions?.[stepId] || 'Sem legenda';
+            
+            await this.sendTypingEffect(userNumber, 1500);
+            
+            const captionMessage = `🎬 **EDITAR LEGENDA - Etapa ${stepNumber}**\n\n🆔 **ID:** ${stepId}\n📝 **Legenda atual:**\n${currentCaption}\n\n**Digite a nova legenda:**`;
+
+            await this.sock.sendMessage(userNumber, { text: captionMessage });
+            
+            // Armazena contexto de edição de legenda
+            this.videoHandler.setUserState(userNumber, 'editing_caption', { stepId, stepNumber });
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar !legenda:', error);
+        }
+    }
+
+    /**
+     * Lista todas as etapas
+     * @param {string} userNumber - Número do usuário
+     */
+    async handleListSteps(userNumber) {
+        try {
+            await this.sendTypingEffect(userNumber, 1500);
+            
+            const availableSteps = this.videoHandler.getAvailableStepsForUser(userNumber);
+            const conditionalSteps = this.videoHandler.videoConfig.flow?.conditional || {};
+            
+            let listMessage = '📜 **LISTA DE ETAPAS**\n\n';
+            
+            for (let i = 0; i < availableSteps.length; i++) {
+                const stepId = availableSteps[i];
+                const stepNumber = i + 1;
+                
+                let stepName = '';
+                let stepType = '';
+                
+                switch(stepId) {
+                    case 'suporte':
+                        stepName = 'Suporte';
+                        stepType = '🔧 Sistema';
+                        break;
+                    case 'info_bot':
+                        stepName = 'Informações Bot';
+                        stepType = '🔧 Sistema';
+                        break;
+                    case 'welcome':
+                        stepName = 'Boas-vindas';
+                        stepType = '🔧 Sistema';
+                        break;
+                    default:
+                        if (conditionalSteps[stepId]) {
+                            stepName = conditionalSteps[stepId].name;
+                            stepType = `✨ Condicional (após ${conditionalSteps[stepId].showAfter})`;
+                        } else {
+                            stepName = stepId;
+                            stepType = '📝 Personalizada';
+                        }
+                }
+                
+                const hasVideo = this.videoHandler.hasVideoForSection(stepId) ? '🎥' : '❌';
+                const caption = this.videoHandler.videoConfig.captions?.[stepId] || 'Sem legenda';
+                
+                listMessage += `**${stepNumber}️⃣ ${stepName}**\n`;
+                listMessage += `📱 ${stepType}\n`;
+                listMessage += `🎬 Vídeo: ${hasVideo}\n`;
+                listMessage += `💬 Legenda: ${caption}\n\n`;
+            }
+            
+            listMessage += '---\n💡 Use !editar, !legenda ou !excluir com o número da etapa';
+            
+            await this.sock.sendMessage(userNumber, { text: listMessage });
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar !listar:', error);
+        }
+    }
+
+    /**
+     * Processa mensagens baseadas no estado do usuário
+     * @param {string} userNumber - Número do usuário
+     * @param {string} messageText - Texto da mensagem
+     * @param {object} userState - Estado atual do usuário
+     */
+    async handleUserStateMessage(userNumber, messageText, userState) {
+        try {
+            switch (userState.state) {
+                case 'awaiting_step_type':
+                    await this.handleStepTypeResponse(userNumber, messageText);
+                    break;
+                    
+                case 'editing_step':
+                    await this.handleEditStepResponse(userNumber, messageText, userState.data);
+                    break;
+                    
+                case 'editing_caption':
+                    await this.handleEditCaptionResponse(userNumber, messageText, userState.data);
+                    break;
+                    
+                case 'confirming_delete':
+                    await this.handleDeleteConfirmation(userNumber, messageText, userState.data);
+                    break;
+                    
+                default:
+                    // Estado não reconhecido, limpa e processa normalmente
+                    this.videoHandler.clearUserState(userNumber);
+            }
+        } catch (error) {
+            console.error('❌ Erro ao processar estado do usuário:', error);
+            this.videoHandler.clearUserState(userNumber);
+        }
+    }
+
+    /**
+     * Processa resposta de tipo de etapa
+     */
+    async handleStepTypeResponse(userNumber, messageText) {
+        const option = messageText.trim();
+        
+        if (option === '1') {
+            // Etapa normal - ainda não implementado
+            await this.sock.sendMessage(userNumber, {
+                text: '🚧 **Em desenvolvimento**\n\nEtapas normais serão implementadas em breve.\n\n💡 Use !criarcondicional para criar etapas condicionais.'
+            });
+        } else if (option === '2') {
+            // Etapa condicional
+            await this.sock.sendMessage(userNumber, {
+                text: '✨ **Criar Etapa Condicional**\n\n📋 **Use o comando:**\n!criarcondicional [id] [etapa-requisito] [nome]\n\n💡 **Exemplo:**\n!criarcondicional promocoes suporte Promoções Especiais'
+            });
+        } else {
+            await this.sock.sendMessage(userNumber, {
+                text: '❌ **Opção inválida**\n\nDigite 1 ou 2 para escolher o tipo de etapa.'
+            });
+            return;
+        }
+        
+        this.videoHandler.clearUserState(userNumber);
+    }
+
+    /**
+     * Processa resposta de edição de etapa
+     */
+    async handleEditStepResponse(userNumber, messageText, stepData) {
+        const option = messageText.trim();
+        
+        switch (option) {
+            case '1':
+                await this.sock.sendMessage(userNumber, {
+                    text: '🚧 **Edição de nome em desenvolvimento**\n\nEssa funcionalidade será implementada em breve.'
+                });
+                break;
+            case '2':
+                // Redireciona para edição de legenda
+                await this.handleEditCaption(userNumber, `!legenda ${stepData.stepNumber}`);
+                return; // Não limpa estado aqui
+            case '3':
+                await this.sock.sendMessage(userNumber, {
+                    text: '🎥 **Substituir vídeo**\n\nEnvie um novo vídeo com "!uparvideo" e escolha esta etapa para substituir.'
+                });
+                break;
+            case '4':
+                await this.sock.sendMessage(userNumber, {
+                    text: '🚧 **Remoção de vídeo em desenvolvimento**\n\nEssa funcionalidade será implementada em breve.'
+                });
+                break;
+            default:
+                await this.sock.sendMessage(userNumber, {
+                    text: '❌ **Opção inválida**\n\nDigite 1, 2, 3 ou 4 para escolher a ação.'
+                });
+                return;
+        }
+        
+        this.videoHandler.clearUserState(userNumber);
+    }
+
+    /**
+     * Processa resposta de edição de legenda
+     */
+    async handleEditCaptionResponse(userNumber, messageText, stepData) {
+        const newCaption = messageText.trim();
+        
+        if (newCaption.length === 0) {
+            await this.sock.sendMessage(userNumber, {
+                text: '❌ **Legenda não pode estar vazia**\n\nDigite uma nova legenda.'
+            });
+            return;
+        }
+        
+        // Atualiza a legenda
+        if (!this.videoHandler.videoConfig.captions) {
+            this.videoHandler.videoConfig.captions = {};
+        }
+        
+        this.videoHandler.videoConfig.captions[stepData.stepId] = newCaption;
+        this.videoHandler.saveVideoConfig();
+        
+        await this.sendTypingEffect(userNumber, 1500);
+        await this.sock.sendMessage(userNumber, {
+            text: `✅ **Legenda atualizada!**\n\n🆔 **Etapa:** ${stepData.stepId}\n📝 **Nova legenda:**\n${newCaption}`
+        });
+        
+        this.videoHandler.clearUserState(userNumber);
+    }
+
+    /**
+     * Processa confirmação de exclusão
+     */
+    async handleDeleteConfirmation(userNumber, messageText, stepData) {
+        const response = messageText.trim().toLowerCase();
+        
+        if (response === 'confirmar') {
+            // Remove etapa condicional
+            const conditionalSteps = this.videoHandler.videoConfig.flow?.conditional || {};
+            
+            if (conditionalSteps[stepData.stepId]) {
+                delete conditionalSteps[stepData.stepId];
+                
+                // Remove legenda se existir
+                if (this.videoHandler.videoConfig.captions && this.videoHandler.videoConfig.captions[stepData.stepId]) {
+                    delete this.videoHandler.videoConfig.captions[stepData.stepId];
+                }
+                
+                this.videoHandler.saveVideoConfig();
+                
+                await this.sendTypingEffect(userNumber, 1500);
+                await this.sock.sendMessage(userNumber, {
+                    text: `✅ **Etapa excluída com sucesso!**\n\n🗑️ **Etapa removida:** ${stepData.stepId}\n\n💡 A etapa não aparecerá mais nos menus.`
+                });
+            } else {
+                await this.sock.sendMessage(userNumber, {
+                    text: '❌ **Etapa não encontrada ou não pode ser excluída.**'
+                });
+            }
+        } else {
+            await this.sock.sendMessage(userNumber, {
+                text: '❌ **Exclusão cancelada**\n\nA etapa foi mantida.'
+            });
+        }
+        
+        this.videoHandler.clearUserState(userNumber);
     }
 }
 

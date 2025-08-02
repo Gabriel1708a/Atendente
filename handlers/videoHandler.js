@@ -576,6 +576,46 @@ _Descartar este vídeo_
     }
 
     /**
+     * Define estado do usuário para fluxos de gerenciamento
+     * @param {string} userNumber - Número do usuário
+     * @param {string} state - Estado atual
+     * @param {object} data - Dados adicionais
+     */
+    setUserState(userNumber, state, data = {}) {
+        if (!this.videoConfig.userStates) {
+            this.videoConfig.userStates = {};
+        }
+        
+        this.videoConfig.userStates[userNumber] = {
+            state: state,
+            data: data,
+            timestamp: Date.now()
+        };
+        
+        console.log(`📍 Estado do usuário ${userNumber}: ${state}`);
+    }
+
+    /**
+     * Obtém estado atual do usuário
+     * @param {string} userNumber - Número do usuário
+     * @returns {object|null}
+     */
+    getUserState(userNumber) {
+        return this.videoConfig.userStates?.[userNumber] || null;
+    }
+
+    /**
+     * Remove estado do usuário
+     * @param {string} userNumber - Número do usuário
+     */
+    clearUserState(userNumber) {
+        if (this.videoConfig.userStates && this.videoConfig.userStates[userNumber]) {
+            delete this.videoConfig.userStates[userNumber];
+            console.log(`🧹 Estado limpo para usuário ${userNumber}`);
+        }
+    }
+
+    /**
      * Obtém vídeo configurado para uma seção
      */
     getVideoForSection(section) {
