@@ -1,67 +1,144 @@
+// bot.js
 const makeWASocket = require('@whiskeysockets/baileys').default;
-const { DisconnectReason } = require('@whiskeysockets/baileys');
+const { DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const P = require('pino');
 
 // Importar módulos personalizados
 const MessageHandler = require('./handlers/messageHandler');
-const AuthManager = require('./session/auth');
-const InputManager = require('./utils/inputManager');
+const AuthManager    = require('./session/auth');
+const InputManager   = require('./utils/inputManager');
 
-/**
- * Bot de Atendimento WhatsApp - Arquivo Principal
- * Desenvolvido com Baileys Library
- */
 class WhatsAppBot {
-    constructor() {
-        this.sock = null;
-        this.authManager = new AuthManager();
-        this.inputManager = new InputManager();
-        this.messageHandler = null;
-        this.isConnected = false;
-        this.pairingAttempted = false; // Controla tentativas de pareamento
-        this.sessionInvalidated = false; // Flag para forçar QR quando sessão é inválida
-        this.reconnectAttempts = 0; // Contador de tentativas de reconexão
-        this.maxReconnectAttempts = 3; // Máximo de tentativas antes de limpar sessão
-        
-        // Logger configurado
-        this.logger = P({ level: 'silent' }); // Remove logs internos do Baileys
-    }
+  constructor() {
+    this.sock             = null;
+    this.authManager      = new AuthManager();
+    this.inputManager     = new InputManager();
+    this.messageHandler   = null;
+    this.isConnected      = false;
+    this.pairingAttempted = false;
+    this.sessionInvalidated = false;
+    this.reconnectAttempts  = 0;
+    this.maxReconnectAttempts = 3;
+    this.logger = P({ level: 'silent' });
+  }
 
-    /**
-     * Inicia o bot
-     */
-    async start() {
-        console.log('🚀 Iniciando Bot de Atendimento WhatsApp...\n');
-        
-        try {
-            // Verifica se já existe sessão
-            if (!this.authManager.hasExistingSession()) {
-                // Pergunta método de conexão
-                const method = await this.inputManager.askConnectionMethod();
-                this.authManager.setConnectionMethod(method);
-                
-                // Se escolheu código, pergunta o número
-                if (method === 'code') {
-                    const phoneNumber = await this.inputManager.askPhoneNumber();
-                    this.authManager.setPhoneNumber(phoneNumber);
-                }
-                
-                // Fecha interface de input
-                this.inputManager.closeInterface();
-            }
-            
-            await this.connect();
-        } catch (error) {
-            console.error('❌ Erro fatal ao iniciar bot:', error);
-            this.inputManager.closeInterface();
-            process.exit(1);
+  async start() {
+    console.log('🚀 Iniciando Bot de Atendimento WhatsApp...\n');
+    try {
+      // se não há sessão salva, pergunta método (qr ou code)
+      if (!this.authManager.hasExistingSession()) {
+        const method = await this.inputManager.askConnectionMethod();
+        this.authManager.setConnectionMethod(method);
+        if (method === 'code') {
+          const phoneNumber = await this.inputManager.askPhoneNumber();
+          this.authManager.setPhoneNumber(phoneNumber);
         }
+        this.inputManager.closeInterface();
+      }
+      await this.connect();
+    } catch (err) {
+      console.error('❌ Erro fatal ao iniciar bot:', err);
+      this.inputManager.closeInterface();
+      process.exit(1);
     }
+  }
 
-    /**
-     * Conecta ao WhatsApp
-     */
+  async connect() {
+    try {
+      const { state, saveCreds } = await this.authManager.loadAuthState();
+      // busca a versão mais recente do WhatsApp Web
+      const [ version ] = await fetchLatestBaileysVersion();
+
+      const socketOptions = {
+        version,
+        auth: state,
+        logger: this.logger,
+        printQRInTerminal: false,
+        browser: ['Bot Atendimento', 'Chrome', '2.1.0'],
+        generateHighQualityLinkPreview: true,
+        defaultQueryTimeoutMs: 60_000,
+        markOnlineOnConnect: true
+      };
+
+      if (this.authManager.getConnectionMethod() === 'code' && this.authManager.getPhoneNumber()) {
+        socketOptions.mobile = false;
+        socketOptions.syncFullHistory = false;
+        console.log('🔧 Configurando conexão para pareamento por código...');
+      }
+
+      this.sock = makeWASocket(socketOptions);
+      this.messageHandler = new MessageHandler(this.sock);
+      this.setupEventHandlers(saveCreds);
+
+    } catch (err) {
+      console.error('❌ Erro ao conectar:', err);
+      throw err;
+    }
+  }
+
+  setupEventHandlers(saveCreds) {
+    this.sock.ev.on('creds.update', saveCreds);
+
+    this.sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      console.log(`🔄 Conexão: ${connection || 'connecting'}`);
+
+      const method = this.authManager.getConnectionMethod();
+      if (qr && !this.pairingAttempted) {
+        if (this.sessionInvalidated || method === 'qr' || !method) {
+          this.displayCustomQR(qr);
+          this.sessionInvalidated = false;
+        } else if (method === 'code') {
+          this.pairingAttempted = true;
+          try {
+            await this.handlePairingCode();
+          } catch (err) {
+            console.error('❌ Pareamento falhou:', err);
+            this.pairingAttempted = false;
+            this.displayCustomQR(qr);
+          }
+        }
+      }
+
+      if (connection === 'close') {
+        this.pairingAttempted = false;
+        await this.handleDisconnection(lastDisconnect);
+      } else if (connection === 'open') {
+        this.pairingAttempted = false;
+        this.reconnectAttempts = 0;
+        console.log('✅ Conectado ao WhatsApp!');
+        this.isConnected = true;
+        this.handleSuccessfulConnection();
+      }
+    });
+
+    this.sock.ev.on('messages.upsert', async m => {
+      if (m.type === 'notify') {
+        for (const msg of m.messages) {
+          if (!msg.key.fromMe && msg.message) {
+            await this.messageHandler.handleMessage(msg);
+          }
+        }
+      }
+    });
+  }
+
+  displayCustomQR(qr) {
+    console.log('\n┌────────── ESCANEIE O QR ──────────┐\n');
+    qrcode.generate(qr, { small: true });
+    console.log('\nScan the code above to authenticate.\n');
+  }
+
+  // ... handlePairingCode, handleDisconnection, handleSuccessfulConnection, stop (mantidos iguais) ...
+}
+
+const bot = new WhatsAppBot();
+
+process.on('SIGINT',  () => bot.stop());
+process.on('SIGTERM', () => bot.stop());
+
+bot.start().catch(console.error);     */
     async connect() {
         try {
             // Carrega estado de autenticação
