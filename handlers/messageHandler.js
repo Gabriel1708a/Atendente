@@ -36,6 +36,13 @@ class MessageHandler {
                 return;
             }
             
+            // Verifica se é resposta de Interactive Message MODERNA
+            if (messageType === 'interactiveResponseMessage') {
+                console.log(`⚡ Interactive Response MODERNO detectado de ${userNumber}`);
+                await this.handleModernInteractiveMessage(m);
+                return;
+            }
+            
             // Verifica se é resposta de lista interativa
             if (messageType === 'listResponseMessage') {
                 console.log(`📋 Resposta de lista detectada de ${userNumber}`);
@@ -112,6 +119,12 @@ class MessageHandler {
                 // Comando especial para testar botões
                 if (messageText.toLowerCase().trim() === '!testbotoes') {
                     await this.testButtonFormats(userNumber);
+                    return;
+                }
+
+                // Comando para testar formatos modernos
+                if (messageText.toLowerCase().trim() === '!testmoderno') {
+                    await this.testModernFormats(userNumber);
                     return;
                 }
                 
@@ -378,49 +391,104 @@ Nossa equipe está pronta para atender você!
         try {
             await this.sendTypingEffect(userNumber, 1500);
 
-            // FORMATO DE BOTÕES QUE REALMENTE FUNCIONA
-            const buttonMessage = {
-                text: `🤖 *INFORMAÇÕES DO BOT*
-
-Selecione uma das opções abaixo:`,
-                footer: '🔧 Bot de Atendimento WhatsApp',
-                buttons: [
-                    {
-                        buttonId: 'bot_versao',
-                        buttonText: { displayText: '🤖 Versão' },
-                        type: 1
+            // FORMATO MODERNO - Interactive Message (MAIS ATUAL)
+            const modernButtonMessage = {
+                interactiveMessage: {
+                    body: {
+                        text: "🤖 *INFORMAÇÕES DO BOT*\n\nSelecione uma das opções:"
                     },
-                    {
-                        buttonId: 'bot_recursos', 
-                        buttonText: { displayText: '⚙️ Recursos' },
-                        type: 1
+                    footer: {
+                        text: "🔧 Bot de Atendimento WhatsApp v2.1"
                     },
-                    {
-                        buttonId: 'bot_comandos',
-                        buttonText: { displayText: '📜 Comandos' },
-                        type: 1
+                    header: {
+                        title: "Menu de Informações",
+                        hasMediaAttachment: false
+                    },
+                    nativeFlowMessage: {
+                        buttons: [
+                            {
+                                name: "quick_reply",
+                                buttonParamsJson: JSON.stringify({
+                                    display_text: "🤖 Versão",
+                                    id: "bot_versao"
+                                })
+                            },
+                            {
+                                name: "quick_reply",
+                                buttonParamsJson: JSON.stringify({
+                                    display_text: "⚙️ Recursos", 
+                                    id: "bot_recursos"
+                                })
+                            },
+                            {
+                                name: "quick_reply",
+                                buttonParamsJson: JSON.stringify({
+                                    display_text: "📜 Comandos",
+                                    id: "bot_comandos"
+                                })
+                            }
+                        ]
                     }
-                ],
-                headerType: 1
+                }
             };
 
-            console.log('🔘 Tentando enviar botões reais...');
+            console.log('🚀 Tentando enviar Interactive Message moderno...');
             
             try {
-                const result = await this.sock.sendMessage(userNumber, buttonMessage);
-                console.log('✅ Botões enviados com sucesso!');
+                const result = await this.sock.sendMessage(userNumber, modernButtonMessage);
+                console.log('✅ Interactive Message enviado!');
                 console.log('📋 Resultado:', JSON.stringify(result, null, 2));
                 
-                // Verifica se realmente enviou botões
-                if (result.message && result.message.buttonsMessage) {
-                    console.log('🎉 BOTÕES FUNCIONARAM! buttonsMessage detectado');
+                // Verifica se realmente enviou interactive message
+                if (result.message && result.message.interactiveMessage) {
+                    console.log('🎉 INTERACTIVE MESSAGE FUNCIONOU! interactiveMessage detectado');
+                    return; // Sucesso - não precisa fallback
                 } else if (result.message && result.message.extendedTextMessage) {
-                    console.log('⚠️ Apenas texto enviado, tentando formato alternativo...');
-                    throw new Error('Botões convertidos para texto');
+                    console.log('⚠️ Apenas texto enviado, tentando formato legado...');
+                    throw new Error('Interactive Message convertido para texto');
                 }
                 
-            } catch (buttonError) {
-                console.log('❌ Botões falharam, usando Lista Interativa...');
+            } catch (modernError) {
+                console.log('❌ Interactive Message falhou, tentando formato legado...');
+                
+                // FALLBACK 1: Botões tradicionais
+                const buttonMessage = {
+                    text: `🤖 *INFORMAÇÕES DO BOT*
+
+Selecione uma das opções abaixo:`,
+                    footer: '🔧 Bot de Atendimento WhatsApp',
+                    buttons: [
+                        {
+                            buttonId: 'bot_versao',
+                            buttonText: { displayText: '🤖 Versão' },
+                            type: 1
+                        },
+                        {
+                            buttonId: 'bot_recursos', 
+                            buttonText: { displayText: '⚙️ Recursos' },
+                            type: 1
+                        },
+                        {
+                            buttonId: 'bot_comandos',
+                            buttonText: { displayText: '📜 Comandos' },
+                            type: 1
+                        }
+                    ],
+                    headerType: 1
+                };
+
+                try {
+                    const legacyResult = await this.sock.sendMessage(userNumber, buttonMessage);
+                    console.log('✅ Botões legados enviados:', JSON.stringify(legacyResult.message, null, 2));
+                    
+                    if (legacyResult.message && legacyResult.message.buttonsMessage) {
+                        console.log('🎉 BOTÕES LEGADOS FUNCIONARAM!');
+                        return;
+                    } else {
+                        throw new Error('Botões legados convertidos para texto');
+                    }
+                } catch (legacyError) {
+                    console.log('❌ Botões legados falharam, usando Lista Interativa...');
                 
                 // Lista interativa como alternativa
                 const listMessage = {
@@ -467,6 +535,7 @@ Selecione uma das opções:`,
                 const listResult = await this.sock.sendMessage(userNumber, listMessage);
                 console.log('✅ Lista interativa enviada!');
                 console.log('📋 Resultado Lista:', JSON.stringify(listResult, null, 2));
+                }
             }
 
         } catch (error) {
@@ -896,9 +965,245 @@ Fornecer atendimento automatizado inteligente e eficiente via WhatsApp.
 
         } catch (error) {
             console.error('❌ Erro no teste de botões:', error);
-            await this.sock.sendMessage(userNumber, { text: '❌ Erro no teste de botões: ' + error.message });
+                         await this.sock.sendMessage(userNumber, { text: '❌ Erro no teste de botões: ' + error.message });
+         }
+     }
+
+         /**
+     * Processa respostas de Interactive Messages MODERNOS
+     * @param {Object} m - Mensagem recebida
+     */
+    async handleModernInteractiveMessage(m) {
+        try {
+            const userNumber = m.key.remoteJid;
+            const interactiveResponse = m.message.interactiveResponseMessage;
+            
+            console.log('🚀 Processando Interactive Response:', JSON.stringify(interactiveResponse, null, 2));
+            
+            let buttonId = null;
+            
+            // Verificar diferentes tipos de resposta
+            if (interactiveResponse.nativeFlowResponseMessage) {
+                const nativeFlow = interactiveResponse.nativeFlowResponseMessage;
+                console.log('⚡ Native Flow Response:', JSON.stringify(nativeFlow, null, 2));
+                
+                // Verificar se tem paramsJson
+                if (nativeFlow.paramsJson) {
+                    try {
+                        const params = JSON.parse(nativeFlow.paramsJson);
+                        buttonId = params.id;
+                        console.log('🎯 Button ID extraído do Native Flow:', buttonId);
+                    } catch (parseError) {
+                        console.log('❌ Erro ao fazer parse dos parâmetros Native Flow:', parseError);
+                    }
+                }
+            }
+            
+            // Se tem quickReplyMessage (formato mais comum)
+            if (interactiveResponse.quickReplyMessage) {
+                buttonId = interactiveResponse.quickReplyMessage.selectedId;
+                console.log('🎯 Button ID extraído do Quick Reply:', buttonId);
+            }
+            
+            // Se não conseguiu extrair ID, usar o primeiro campo disponível
+            if (!buttonId && interactiveResponse.body) {
+                buttonId = interactiveResponse.body.text;
+                console.log('🎯 Button ID extraído do body:', buttonId);
+            }
+            
+            if (buttonId) {
+                console.log(`✅ Processando resposta interativa moderna: ${buttonId}`);
+                await this.handleButtonResponse(userNumber, buttonId);
+            } else {
+                console.log('❌ Não foi possível extrair buttonId da resposta interativa');
+                await this.sendFallbackMenu(userNumber);
+            }
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar Interactive Message moderno:', error);
+            const userNumber = m.key.remoteJid;
+            await this.sendFallbackMenu(userNumber);
         }
     }
+
+    /**
+     * Testa formatos modernos de Interactive Messages
+     * @param {string} userNumber - Número do usuário
+     */
+    async testModernFormats(userNumber) {
+         try {
+             console.log('🚀 Testando formatos MODERNOS de Interactive Messages...');
+             
+             // FORMATO MODERNO 1: Interactive Message com Quick Reply
+             const modernFormat1 = {
+                 interactiveMessage: {
+                     body: {
+                         text: "🚀 *TESTE MODERNO 1 - Interactive Message*\n\nSelecione uma opção:"
+                     },
+                     footer: {
+                         text: "Bot de Atendimento v2.1"
+                     },
+                     header: {
+                         title: "Teste Interactive",
+                         hasMediaAttachment: false
+                     },
+                     nativeFlowMessage: {
+                         buttons: [
+                             {
+                                 name: "quick_reply",
+                                 buttonParamsJson: JSON.stringify({
+                                     display_text: "✅ Opção A",
+                                     id: "opcao_a"
+                                 })
+                             },
+                             {
+                                 name: "quick_reply", 
+                                 buttonParamsJson: JSON.stringify({
+                                     display_text: "🔥 Opção B",
+                                     id: "opcao_b"
+                                 })
+                             }
+                         ]
+                     }
+                 }
+             };
+
+             await this.sock.sendMessage(userNumber, { text: '🚀 Testando Formato Moderno 1...' });
+             await new Promise(resolve => setTimeout(resolve, 1000));
+             
+             try {
+                 const result1 = await this.sock.sendMessage(userNumber, modernFormat1);
+                 console.log('✅ Formato Moderno 1 enviado:', JSON.stringify(result1.message, null, 2));
+                 
+                 if (result1.message.interactiveMessage) {
+                     await this.sock.sendMessage(userNumber, { text: '🎉 FORMATO MODERNO 1 FUNCIONOU! Interactive Message detectado.' });
+                 } else {
+                     await this.sock.sendMessage(userNumber, { text: '❌ Formato Moderno 1 falhou - apenas texto.' });
+                 }
+             } catch (error) {
+                 console.log('❌ Formato Moderno 1 erro:', error.message);
+                 await this.sock.sendMessage(userNumber, { text: `❌ Formato Moderno 1 erro: ${error.message}` });
+             }
+
+             await new Promise(resolve => setTimeout(resolve, 2000));
+
+             // FORMATO MODERNO 2: Interactive Message com Single Select
+             const modernFormat2 = {
+                 interactiveMessage: {
+                     body: {
+                         text: "🎯 *TESTE MODERNO 2 - Single Select*\n\nEscolha uma das opções:"
+                     },
+                     footer: {
+                         text: "Teste de Seleção"
+                     },
+                     nativeFlowMessage: {
+                         buttons: [
+                             {
+                                 name: "single_select",
+                                 buttonParamsJson: JSON.stringify({
+                                     title: "Ver Opções",
+                                     sections: [
+                                         {
+                                             title: "Opções Disponíveis",
+                                             rows: [
+                                                 {
+                                                     id: "select_1",
+                                                     title: "📋 Seleção 1",
+                                                     description: "Primeira opção de seleção"
+                                                 },
+                                                 {
+                                                     id: "select_2", 
+                                                     title: "📄 Seleção 2",
+                                                     description: "Segunda opção de seleção"
+                                                 }
+                                             ]
+                                         }
+                                     ]
+                                 })
+                             }
+                         ]
+                     }
+                 }
+             };
+
+             await this.sock.sendMessage(userNumber, { text: '🎯 Testando Formato Moderno 2...' });
+             await new Promise(resolve => setTimeout(resolve, 1000));
+
+             try {
+                 const result2 = await this.sock.sendMessage(userNumber, modernFormat2);
+                 console.log('✅ Formato Moderno 2 enviado:', JSON.stringify(result2.message, null, 2));
+                 
+                 if (result2.message.interactiveMessage) {
+                     await this.sock.sendMessage(userNumber, { text: '🎉 FORMATO MODERNO 2 FUNCIONOU! Single Select detectado.' });
+                 } else {
+                     await this.sock.sendMessage(userNumber, { text: '❌ Formato Moderno 2 falhou - apenas texto.' });
+                 }
+             } catch (error) {
+                 console.log('❌ Formato Moderno 2 erro:', error.message);
+                 await this.sock.sendMessage(userNumber, { text: `❌ Formato Moderno 2 erro: ${error.message}` });
+             }
+
+             await new Promise(resolve => setTimeout(resolve, 2000));
+
+             // FORMATO MODERNO 3: Interactive Message com Flow (mais avançado)
+             const modernFormat3 = {
+                 interactiveMessage: {
+                     body: {
+                         text: "⚡ *TESTE MODERNO 3 - Flow Message*\n\nInteração avançada:"
+                     },
+                     footer: {
+                         text: "Teste de Flow"
+                     },
+                     nativeFlowMessage: {
+                         buttons: [
+                             {
+                                 name: "cta_url",
+                                 buttonParamsJson: JSON.stringify({
+                                     display_text: "🌐 Link Teste",
+                                     url: "https://github.com",
+                                     merchant_url: "https://github.com"
+                                 })
+                             },
+                             {
+                                 name: "quick_reply",
+                                 buttonParamsJson: JSON.stringify({
+                                     display_text: "⚡ Flow Rápido",
+                                     id: "flow_teste"
+                                 })
+                             }
+                         ]
+                     }
+                 }
+             };
+
+             await this.sock.sendMessage(userNumber, { text: '⚡ Testando Formato Moderno 3...' });
+             await new Promise(resolve => setTimeout(resolve, 1000));
+
+             try {
+                 const result3 = await this.sock.sendMessage(userNumber, modernFormat3);
+                 console.log('✅ Formato Moderno 3 enviado:', JSON.stringify(result3.message, null, 2));
+                 
+                 if (result3.message.interactiveMessage) {
+                     await this.sock.sendMessage(userNumber, { text: '🎉 FORMATO MODERNO 3 FUNCIONOU! Flow Message detectado.' });
+                 } else {
+                     await this.sock.sendMessage(userNumber, { text: '❌ Formato Moderno 3 falhou - apenas texto.' });
+                 }
+             } catch (error) {
+                 console.log('❌ Formato Moderno 3 erro:', error.message);
+                 await this.sock.sendMessage(userNumber, { text: `❌ Formato Moderno 3 erro: ${error.message}` });
+             }
+
+             await new Promise(resolve => setTimeout(resolve, 2000));
+             
+             await this.sock.sendMessage(userNumber, { 
+                 text: '🚀 *TESTE MODERNO CONCLUÍDO*\n\nEsses são os formatos mais novos do WhatsApp Business API.\n\n💡 Se algum mostrar "FUNCIONOU!", usaremos esse formato!' 
+             });
+
+         } catch (error) {
+             console.error('❌ Erro no teste moderno:', error);
+             await this.sock.sendMessage(userNumber, { text: '❌ Erro no teste moderno: ' + error.message });
+         }
+     }
 }
 
 module.exports = MessageHandler;
