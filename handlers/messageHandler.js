@@ -50,6 +50,13 @@ class MessageHandler {
                 return;
             }
             
+            // Verifica se é resposta de Poll/Enquete
+            if (messageType === 'pollUpdateMessage') {
+                console.log(`📊 Resposta de Poll detectada de ${userNumber}`);
+                await this.handlePollMessage(m);
+                return;
+            }
+            
             // Verifica se é uma mensagem de texto
             if (messageType === 'conversation' || messageType === 'extendedTextMessage') {
                 const messageText = m.message.conversation || m.message.extendedTextMessage?.text || '';
@@ -131,6 +138,12 @@ class MessageHandler {
                 // Comando para testar formatos ultra-simples
                 if (messageText.toLowerCase().trim() === '!testsimples') {
                     await this.testSimpleFormats(userNumber);
+                    return;
+                }
+
+                // Comando para criar Poll do menu principal
+                if (messageText.toLowerCase().trim() === '!pollmenu') {
+                    await this.sendPollMenu(userNumber);
                     return;
                 }
                 
@@ -397,8 +410,40 @@ Nossa equipe está pronta para atender você!
         try {
             await this.sendTypingEffect(userNumber, 1500);
 
-            // FORMATO ULTRA-SIMPLES que SEMPRE funciona
-            const simpleMenuMessage = `🤖 *INFORMAÇÕES DO BOT*
+            // FORMATO POLL - Funciona perfeitamente (detectado no teste)
+            const pollMessage = {
+                poll: {
+                    name: "🤖 *INFORMAÇÕES DO BOT* - Selecione uma opção:",
+                    values: [
+                        "🤖 Versão do Bot",
+                        "⚙️ Recursos",
+                        "📜 Comandos",
+                        "🆘 Suporte Técnico",
+                        "ℹ️ Sobre o Sistema"
+                    ],
+                    selectableCount: 1
+                }
+            };
+
+            console.log('📊 Tentando enviar Poll (formato que funciona)...');
+            
+            try {
+                const pollResult = await this.sock.sendMessage(userNumber, pollMessage);
+                console.log('✅ Poll enviado com sucesso!');
+                console.log('📋 Resultado Poll:', JSON.stringify(pollResult.message, null, 2));
+                
+                if (pollResult.message.pollCreationMessageV3 || pollResult.message.pollCreationMessage) {
+                    console.log('🎉 POLL FUNCIONOU! Enquete detectada.');
+                    return; // Sucesso - não precisa fallback
+                } else {
+                    throw new Error('Poll convertido para texto');
+                }
+                
+            } catch (pollError) {
+                console.log('❌ Poll falhou, usando formato texto...');
+                
+                // FALLBACK: Formato texto simples
+                const simpleMenuMessage = `🤖 *INFORMAÇÕES DO BOT*
 
 📋 **Selecione uma opção clicando no número:**
 
@@ -421,8 +466,9 @@ Nossa equipe está pronta para atender você!
 💡 *Digite ou clique no número desejado (1-5)*
 🔄 *Digite "menu" para voltar ao menu principal*`;
 
-            await this.sock.sendMessage(userNumber, { text: simpleMenuMessage });
-            console.log('✅ Menu de informações ultra-simples enviado (SEMPRE funciona)');
+                await this.sock.sendMessage(userNumber, { text: simpleMenuMessage });
+                console.log('✅ Menu de informações texto enviado (fallback)');
+            }
 
         } catch (error) {
             console.error('❌ Erro ao enviar menu Info Bot:', error);
@@ -854,6 +900,88 @@ Fornecer atendimento automatizado inteligente e eficiente via WhatsApp.
      }
 
          /**
+     * Processa respostas de Poll/Enquete
+     * @param {Object} m - Mensagem recebida
+     */
+    async handlePollMessage(m) {
+        try {
+            const userNumber = m.key.remoteJid;
+            const pollUpdate = m.message.pollUpdateMessage;
+            
+            console.log('📊 Processando resposta de Poll:', JSON.stringify(pollUpdate, null, 2));
+            
+            // Extrair a opção selecionada
+            if (pollUpdate && pollUpdate.vote && pollUpdate.vote.selectedOptions) {
+                const selectedOptions = pollUpdate.vote.selectedOptions;
+                
+                for (const option of selectedOptions) {
+                    const optionName = option.name || option.optionName;
+                    console.log(`🎯 Opção selecionada no Poll: ${optionName}`);
+                    
+                    // Processar cada opção
+                    await this.processPollOption(userNumber, optionName);
+                }
+            } else {
+                console.log('❌ Não foi possível extrair opção do Poll');
+            }
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar Poll:', error);
+        }
+    }
+
+    /**
+     * Processa a opção específica selecionada no Poll
+     * @param {string} userNumber - Número do usuário
+     * @param {string} optionName - Nome da opção selecionada
+     */
+    async processPollOption(userNumber, optionName) {
+        try {
+            console.log(`🎯 Processando opção do Poll: "${optionName}"`);
+            
+            // Mapear opções do Poll para ações
+            switch (optionName) {
+                case '🤖 Versão do Bot':
+                    console.log('📱 Usuário selecionou: Versão do Bot');
+                    await this.handleButtonResponse(userNumber, 'bot_versao');
+                    break;
+                    
+                case '⚙️ Recursos':
+                    console.log('⚙️ Usuário selecionou: Recursos');
+                    await this.handleButtonResponse(userNumber, 'bot_recursos');
+                    break;
+                    
+                case '📜 Comandos':
+                    console.log('📜 Usuário selecionou: Comandos');
+                    
+                    // Enviar mensagem de sucesso
+                    await this.sock.sendMessage(userNumber, { 
+                        text: '✅ *Sucesso!* Comandos selecionados.\n\n🔄 Retornando ao menu principal...' 
+                    });
+                    
+                    // Simular comando !menu
+                    console.log('🔄 Executando comando !menu automaticamente');
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    await this.sendWelcomeMenu(userNumber);
+                    break;
+                    
+                default:
+                    console.log(`❓ Opção não reconhecida: ${optionName}`);
+                    await this.sock.sendMessage(userNumber, { 
+                        text: `📋 Opção selecionada: ${optionName}\n\n💡 Digite "menu" para outras opções.` 
+                    });
+                    break;
+            }
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar opção do Poll:', error);
+            await this.sock.sendMessage(userNumber, { 
+                text: '❌ Erro ao processar sua seleção. Digite "menu" para tentar novamente.' 
+            });
+        }
+    }
+
+    /**
      * Processa respostas de Interactive Messages MODERNOS
      * @param {Object} m - Mensagem recebida
      */
@@ -1207,6 +1335,46 @@ END:VCARD`
          } catch (error) {
              console.error('❌ Erro no teste ultra-simples:', error);
              await this.sock.sendMessage(userNumber, { text: '❌ Erro no teste ultra-simples: ' + error.message });
+         }
+     }
+
+     /**
+     * Envia Poll do menu principal (demonstração)
+     * @param {string} userNumber - Número do usuário
+     */
+     async sendPollMenu(userNumber) {
+         try {
+             console.log('📊 Enviando Poll do menu principal...');
+             
+             const mainPollMessage = {
+                 poll: {
+                     name: "🚀 *MENU PRINCIPAL DO BOT* - O que você gostaria de fazer?",
+                     values: [
+                         "🏠 Página Inicial",
+                         "🤖 Informações do Bot", 
+                         "🆘 Suporte e Ajuda",
+                         "📞 Falar com Atendente",
+                         "📱 Testar Comandos"
+                     ],
+                     selectableCount: 1
+                 }
+             };
+             
+             const result = await this.sock.sendMessage(userNumber, mainPollMessage);
+             console.log('✅ Poll menu principal enviado:', JSON.stringify(result.message, null, 2));
+             
+             if (result.message.pollCreationMessageV3) {
+                 await this.sock.sendMessage(userNumber, { 
+                     text: '📊 *Poll criado com sucesso!*\n\n💡 Selecione uma das opções acima para continuar.' 
+                 });
+             }
+             
+         } catch (error) {
+             console.error('❌ Erro ao criar Poll menu:', error);
+             await this.sock.sendMessage(userNumber, { 
+                 text: '❌ Erro ao criar Poll. Usando menu tradicional...' 
+             });
+             await this.sendWelcomeMenu(userNumber);
          }
      }
 }
