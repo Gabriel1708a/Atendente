@@ -177,9 +177,11 @@ class WhatsAppBot {
         }
       };
 
+      // IMPORTANTE: Força modo web para botões funcionarem
+      socketOptions.mobile = false;
+      
       // Configurações específicas para pareamento por código
       if (this.authManager?.getConnectionMethod() === 'code' && this.authManager?.getPhoneNumber()) {
-        socketOptions.mobile = false;
         console.log('📱 Modo pareamento por código ativado');
       }
 
