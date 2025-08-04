@@ -138,7 +138,7 @@ const bot = new WhatsAppBot();
 process.on('SIGINT',  () => bot.stop());
 process.on('SIGTERM', () => bot.stop());
 
-bot.start().catch(console.error);     */
+bot.start().catch(console.error);     
     async connect() {
         try {
             // Carrega estado de autenticação
