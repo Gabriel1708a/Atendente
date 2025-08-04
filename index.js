@@ -201,7 +201,7 @@ bot.start().catch(console.error);      if (this.authManager.getConnectionMethod(
       this.messageHandler = new MessageHandler(this.sock);
       this.setupEventHandlers(saveCreds);
 
-    } catch (err) {
+ catch (err) {
       console.error('❌ Erro ao conectar:', err);
       throw err;
     }
