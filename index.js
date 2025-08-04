@@ -11,22 +11,21 @@ const InputManager   = require('./utils/inputManager');
 
 class WhatsAppBot {
   constructor() {
-    this.sock             = null;
-    this.authManager      = new AuthManager();
-    this.inputManager     = new InputManager();
-    this.messageHandler   = null;
-    this.isConnected      = false;
-    this.pairingAttempted = false;
+    this.sock               = null;
+    this.authManager        = new AuthManager();
+    this.inputManager       = new InputManager();
+    this.messageHandler     = null;
+    this.isConnected        = false;
+    this.pairingAttempted   = false;
     this.sessionInvalidated = false;
     this.reconnectAttempts  = 0;
     this.maxReconnectAttempts = 3;
-    this.logger = P({ level: 'silent' });
+    this.logger             = P({ level: 'silent' });
   }
 
   async start() {
     console.log('🚀 Iniciando Bot de Atendimento WhatsApp...\n');
     try {
-      // se não há sessão salva, pergunta método (qr ou code)
       if (!this.authManager.hasExistingSession()) {
         const method = await this.inputManager.askConnectionMethod();
         this.authManager.setConnectionMethod(method);
@@ -47,8 +46,7 @@ class WhatsAppBot {
   async connect() {
     try {
       const { state, saveCreds } = await this.authManager.loadAuthState();
-      // busca a versão mais recente do WhatsApp Web
-      const [ version ] = await fetchLatestBaileysVersion();
+      const [ version ]         = await fetchLatestBaileysVersion();
 
       const socketOptions = {
         version,
@@ -62,6 +60,138 @@ class WhatsAppBot {
       };
 
       if (this.authManager.getConnectionMethod() === 'code' && this.authManager.getPhoneNumber()) {
+        socketOptions.mobile = false;
+        socketOptions.syncFullHistory = false;
+        console.log('🔧 Configurando conexão para pareamento por código...');
+      }
+
+      this.sock           = makeWASocket(socketOptions);
+      this.messageHandler = new MessageHandler(this.sock);
+      this.setupEventHandlers(saveCreds);
+
+    } catch (err) {
+      console.error('❌ Erro ao conectar:', err);
+      throw err;
+    }
+  }
+
+  setupEventHandlers(saveCreds) {
+    this.sock.ev.on('creds.update', saveCreds);
+
+    this.sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      console.log(`🔄 Conexão: ${connection || 'connecting'}`);
+
+      const method = this.authManager.getConnectionMethod();
+      if (qr && !this.pairingAttempted) {
+        if (this.sessionInvalidated || method === 'qr' || !method) {
+          this.displayCustomQR(qr);
+          this.sessionInvalidated = false;
+        } else {
+          this.pairingAttempted = true;
+          try {
+            await this.handlePairingCode();
+          } catch (err) {
+            console.error('❌ Pareamento falhou:', err);
+            this.pairingAttempted = false;
+            this.displayCustomQR(qr);
+          }
+        }
+      }
+
+      if (connection === 'close') {
+        this.pairingAttempted = false;
+        await this.handleDisconnection(lastDisconnect);
+      } else if (connection === 'open') {
+        this.pairingAttempted = false;
+        this.reconnectAttempts = 0;
+        console.log('✅ Conectado ao WhatsApp!');
+        this.isConnected = true;
+        this.handleSuccessfulConnection();
+      }
+    });
+
+    this.sock.ev.on('messages.upsert', async m => {
+      if (m.type === 'notify') {
+        for (const msg of m.messages) {
+          if (!msg.key.fromMe && msg.message) {
+            await this.messageHandler.handleMessage(msg);
+          }
+        }
+      }
+    });
+  }
+
+  displayCustomQR(qr) {
+    console.log('\n┌────────── ESCANEIE O QR ──────────┐\n');
+    qrcode.generate(qr, { small: true });
+    console.log('\nScan the code above to authenticate.\n');
+  }
+
+  async handlePairingCode() {
+    const phoneNumber = this.authManager.getPhoneNumber();
+    if (!phoneNumber) return;
+    console.log('🔢 Solicitando código de pareamento...');
+    const code = await this.sock.requestPairingCode(phoneNumber);
+    console.log(`✅ Código gerado: ${code.toUpperCase()}`);
+    console.log('Siga instruções no terminal do WhatsApp para completar o pareamento.');
+  }
+
+  async handleDisconnection(lastDisconnect) {
+    const errorCode    = lastDisconnect?.error?.output?.statusCode;
+    const shouldReconnect = errorCode !== DisconnectReason.loggedOut;
+
+    switch (errorCode) {
+      case DisconnectReason.badSession:
+      case DisconnectReason.loggedOut:
+        this.reconnectAttempts++;
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          console.log('❌ Sessão corrompida, limpando e encerrando.');
+          this.authManager.clearSession();
+          process.exit(1);
+        }
+        this.sessionInvalidated = true;
+        setTimeout(() => this.connect(), 3000);
+        return;
+      case DisconnectReason.connectionClosed:
+      case DisconnectReason.connectionLost:
+      case DisconnectReason.restartRequired:
+      case DisconnectReason.timedOut:
+        console.log('🔄 Tentando reconectar em 5s...');
+        setTimeout(() => this.connect(), 5000);
+        return;
+      default:
+        if (!shouldReconnect) {
+          console.log('❌ Desconectado permanentemente.');
+          process.exit(0);
+        }
+    }
+  }
+
+  handleSuccessfulConnection() {
+    console.log('\n✅ BOT CONECTADO COM SUCESSO!\n');
+    console.log('📱 Número:', this.sock.user?.id?.split(':')[0]);
+    console.log('🤖 Pronto para receber mensagens!\n');
+  }
+
+  async stop() {
+    console.log('🛑 Parando bot...');
+    this.inputManager.closeInterface();
+    if (this.sock) await this.sock.logout();
+    console.log('✅ Bot parado. Sessão preservada.');
+    process.exit(0);
+  }
+}
+
+// Inicialização
+const bot = new WhatsAppBot();
+
+// Captura sinais do sistema
+process.on('SIGINT',  () => bot.stop());
+process.on('SIGTERM', () => bot.stop());
+
+// Inicia o bot
+bot.start().catch(console.error);      if (this.authManager.getConnectionMethod() === 'code' && this.authManager.getPhoneNumber()) {
         socketOptions.mobile = false;
         socketOptions.syncFullHistory = false;
         console.log('🔧 Configurando conexão para pareamento por código...');
