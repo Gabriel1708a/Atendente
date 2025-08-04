@@ -108,6 +108,12 @@ class MessageHandler {
                     await this.sendStepManagementMenu(userNumber);
                     return;
                 }
+
+                // Comando especial para testar botões
+                if (messageText.toLowerCase().trim() === '!testbotoes') {
+                    await this.testButtonFormats(userNumber);
+                    return;
+                }
                 
                 // Verifica se é resposta numérica (1, 2, etc.)
                 if (this.isNumericResponse(messageText)) {
@@ -365,41 +371,122 @@ Nossa equipe está pronta para atender você!
     }
 
     /**
-     * Envia menu de informações do bot (SEMPRE FUNCIONA)
+     * Envia menu de informações do bot com BOTÕES REAIS
      * @param {string} userNumber - Número do usuário
      */
     async sendBotInfoMenu(userNumber) {
         try {
             await this.sendTypingEffect(userNumber, 1500);
 
-            const menuMessage = `🤖 *INFORMAÇÕES DO BOT*
+            // FORMATO DE BOTÕES QUE REALMENTE FUNCIONA
+            const buttonMessage = {
+                text: `🤖 *INFORMAÇÕES DO BOT*
+
+Selecione uma das opções abaixo:`,
+                footer: '🔧 Bot de Atendimento WhatsApp',
+                buttons: [
+                    {
+                        buttonId: 'bot_versao',
+                        buttonText: { displayText: '🤖 Versão' },
+                        type: 1
+                    },
+                    {
+                        buttonId: 'bot_recursos', 
+                        buttonText: { displayText: '⚙️ Recursos' },
+                        type: 1
+                    },
+                    {
+                        buttonId: 'bot_comandos',
+                        buttonText: { displayText: '📜 Comandos' },
+                        type: 1
+                    }
+                ],
+                headerType: 1
+            };
+
+            console.log('🔘 Tentando enviar botões reais...');
+            
+            try {
+                const result = await this.sock.sendMessage(userNumber, buttonMessage);
+                console.log('✅ Botões enviados com sucesso!');
+                console.log('📋 Resultado:', JSON.stringify(result, null, 2));
+                
+                // Verifica se realmente enviou botões
+                if (result.message && result.message.buttonsMessage) {
+                    console.log('🎉 BOTÕES FUNCIONARAM! buttonsMessage detectado');
+                } else if (result.message && result.message.extendedTextMessage) {
+                    console.log('⚠️ Apenas texto enviado, tentando formato alternativo...');
+                    throw new Error('Botões convertidos para texto');
+                }
+                
+            } catch (buttonError) {
+                console.log('❌ Botões falharam, usando Lista Interativa...');
+                
+                // Lista interativa como alternativa
+                const listMessage = {
+                    text: `🤖 *INFORMAÇÕES DO BOT*
+
+Selecione uma das opções:`,
+                    footer: '🔧 Bot de Atendimento WhatsApp',
+                    title: 'Menu de Informações',
+                    buttonText: 'Ver Opções',
+                    sections: [
+                        {
+                            title: 'Informações Disponíveis',
+                            rows: [
+                                {
+                                    id: 'bot_versao',
+                                    title: '🤖 Versão do Bot',
+                                    description: 'Informações de versão e atualizações'
+                                },
+                                {
+                                    id: 'bot_recursos',
+                                    title: '⚙️ Recursos',
+                                    description: 'Lista completa de funcionalidades'
+                                },
+                                {
+                                    id: 'bot_comandos',
+                                    title: '📜 Comandos',
+                                    description: 'Guia de todos os comandos'
+                                },
+                                {
+                                    id: 'bot_suporte',
+                                    title: '🆘 Suporte Técnico',
+                                    description: 'Ajuda e troubleshooting'
+                                },
+                                {
+                                    id: 'bot_sobre',
+                                    title: 'ℹ️ Sobre o Sistema',
+                                    description: 'Missão e características'
+                                }
+                            ]
+                        }
+                    ]
+                };
+                
+                const listResult = await this.sock.sendMessage(userNumber, listMessage);
+                console.log('✅ Lista interativa enviada!');
+                console.log('📋 Resultado Lista:', JSON.stringify(listResult, null, 2));
+            }
+
+        } catch (error) {
+            console.error('❌ Erro ao enviar menu Info Bot:', error);
+            
+            // Fallback final - menu numerado
+            const fallbackMessage = `🤖 *INFORMAÇÕES DO BOT*
 
 📋 **Selecione uma opção:**
 
 *1️⃣ Versão do Bot* 
-   Informações de versão e atualizações
-
 *2️⃣ Recursos*
-   Lista completa de funcionalidades
-
 *3️⃣ Comandos*
-   Guia de todos os comandos disponíveis
-
-*4️⃣ Suporte Técnico*
-   Ajuda e troubleshooting
-
+*4️⃣ Suporte Técnico* 
 *5️⃣ Sobre o Sistema*
-   Missão e características
 
----
-💡 _Digite o número da opção desejada (1-5)_
-🔄 _Digite "menu" para voltar ao menu principal_`;
+💡 _Digite o número da opção (1-5)_`;
 
-            await this.sock.sendMessage(userNumber, { text: menuMessage });
-            console.log(`✅ Menu Info Bot enviado para ${userNumber}`);
-
-        } catch (error) {
-            console.error('❌ Erro ao enviar menu Info Bot:', error);
+            await this.sock.sendMessage(userNumber, { text: fallbackMessage });
+            console.log('✅ Fallback numerado enviado');
         }
     }
 
@@ -670,6 +757,147 @@ Fornecer atendimento automatizado inteligente e eficiente via WhatsApp.
             text: 'Estado de usuário processado. Digite "menu" para continuar.' 
         });
         this.videoHandler.clearUserState(userNumber);
+    }
+
+    /**
+     * Testa diferentes formatos de botões para encontrar o que funciona
+     * @param {string} userNumber - Número do usuário
+     */
+    async testButtonFormats(userNumber) {
+        try {
+            console.log('🧪 Iniciando teste de formatos de botões...');
+            
+            // FORMATO 1: Botões simples (padrão)
+            const format1 = {
+                text: '🧪 *TESTE FORMATO 1 - Botões Simples*',
+                footer: 'Teste de Botões',
+                buttons: [
+                    {
+                        buttonId: 'test1',
+                        buttonText: { displayText: '✅ Botão 1' },
+                        type: 1
+                    },
+                    {
+                        buttonId: 'test2',
+                        buttonText: { displayText: '🔥 Botão 2' },
+                        type: 1
+                    }
+                ],
+                headerType: 1
+            };
+
+            await this.sock.sendMessage(userNumber, { text: '🧪 Testando Formato 1...' });
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            try {
+                const result1 = await this.sock.sendMessage(userNumber, format1);
+                console.log('✅ Formato 1 enviado:', JSON.stringify(result1.message, null, 2));
+                
+                if (result1.message.buttonsMessage) {
+                    await this.sock.sendMessage(userNumber, { text: '🎉 FORMATO 1 FUNCIONOU! Botões detectados.' });
+                } else {
+                    await this.sock.sendMessage(userNumber, { text: '❌ Formato 1 falhou - apenas texto.' });
+                }
+            } catch (error) {
+                console.log('❌ Formato 1 erro:', error.message);
+                await this.sock.sendMessage(userNumber, { text: `❌ Formato 1 erro: ${error.message}` });
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // FORMATO 2: Template Buttons
+            const format2 = {
+                text: '🧪 *TESTE FORMATO 2 - Template Buttons*',
+                footer: 'Teste de Template',
+                templateButtons: [
+                    {
+                        index: 1,
+                        quickReplyButton: {
+                            displayText: '🚀 Template 1',
+                            id: 'template1'
+                        }
+                    },
+                    {
+                        index: 2,
+                        quickReplyButton: {
+                            displayText: '⭐ Template 2',
+                            id: 'template2'
+                        }
+                    }
+                ]
+            };
+
+            await this.sock.sendMessage(userNumber, { text: '🧪 Testando Formato 2...' });
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            try {
+                const result2 = await this.sock.sendMessage(userNumber, format2);
+                console.log('✅ Formato 2 enviado:', JSON.stringify(result2.message, null, 2));
+                
+                if (result2.message.templateMessage) {
+                    await this.sock.sendMessage(userNumber, { text: '🎉 FORMATO 2 FUNCIONOU! Template detectado.' });
+                } else {
+                    await this.sock.sendMessage(userNumber, { text: '❌ Formato 2 falhou - apenas texto.' });
+                }
+            } catch (error) {
+                console.log('❌ Formato 2 erro:', error.message);
+                await this.sock.sendMessage(userNumber, { text: `❌ Formato 2 erro: ${error.message}` });
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // FORMATO 3: Lista Interativa
+            const format3 = {
+                text: '🧪 *TESTE FORMATO 3 - Lista Interativa*',
+                footer: 'Teste de Lista',
+                title: 'Lista de Teste',
+                buttonText: 'Ver Opções',
+                sections: [
+                    {
+                        title: 'Opções de Teste',
+                        rows: [
+                            {
+                                id: 'lista1',
+                                title: '📋 Lista 1',
+                                description: 'Primeira opção da lista'
+                            },
+                            {
+                                id: 'lista2',
+                                title: '📄 Lista 2',
+                                description: 'Segunda opção da lista'
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            await this.sock.sendMessage(userNumber, { text: '🧪 Testando Formato 3...' });
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            try {
+                const result3 = await this.sock.sendMessage(userNumber, format3);
+                console.log('✅ Formato 3 enviado:', JSON.stringify(result3.message, null, 2));
+                
+                if (result3.message.listMessage) {
+                    await this.sock.sendMessage(userNumber, { text: '🎉 FORMATO 3 FUNCIONOU! Lista detectada.' });
+                } else {
+                    await this.sock.sendMessage(userNumber, { text: '❌ Formato 3 falhou - apenas texto.' });
+                }
+            } catch (error) {
+                console.log('❌ Formato 3 erro:', error.message);
+                await this.sock.sendMessage(userNumber, { text: `❌ Formato 3 erro: ${error.message}` });
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            await this.sock.sendMessage(userNumber, { 
+                text: '🧪 *TESTE CONCLUÍDO*\n\nVerifique os logs no terminal para ver qual formato funcionou.\n\n💡 Use o formato que mostrar "FUNCIONOU!" para implementar botões reais.' 
+            });
+
+        } catch (error) {
+            console.error('❌ Erro no teste de botões:', error);
+            await this.sock.sendMessage(userNumber, { text: '❌ Erro no teste de botões: ' + error.message });
+        }
     }
 }
 
