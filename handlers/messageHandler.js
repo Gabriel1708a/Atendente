@@ -127,6 +127,12 @@ class MessageHandler {
                     await this.testModernFormats(userNumber);
                     return;
                 }
+
+                // Comando para testar formatos ultra-simples
+                if (messageText.toLowerCase().trim() === '!testsimples') {
+                    await this.testSimpleFormats(userNumber);
+                    return;
+                }
                 
                 // Verifica se é resposta numérica (1, 2, etc.)
                 if (this.isNumericResponse(messageText)) {
@@ -391,171 +397,49 @@ Nossa equipe está pronta para atender você!
         try {
             await this.sendTypingEffect(userNumber, 1500);
 
-            // FORMATO MODERNO - Interactive Message (MAIS ATUAL)
-            const modernButtonMessage = {
-                interactiveMessage: {
-                    body: {
-                        text: "🤖 *INFORMAÇÕES DO BOT*\n\nSelecione uma das opções:"
-                    },
-                    footer: {
-                        text: "🔧 Bot de Atendimento WhatsApp v2.1"
-                    },
-                    header: {
-                        title: "Menu de Informações",
-                        hasMediaAttachment: false
-                    },
-                    nativeFlowMessage: {
-                        buttons: [
-                            {
-                                name: "quick_reply",
-                                buttonParamsJson: JSON.stringify({
-                                    display_text: "🤖 Versão",
-                                    id: "bot_versao"
-                                })
-                            },
-                            {
-                                name: "quick_reply",
-                                buttonParamsJson: JSON.stringify({
-                                    display_text: "⚙️ Recursos", 
-                                    id: "bot_recursos"
-                                })
-                            },
-                            {
-                                name: "quick_reply",
-                                buttonParamsJson: JSON.stringify({
-                                    display_text: "📜 Comandos",
-                                    id: "bot_comandos"
-                                })
-                            }
-                        ]
-                    }
-                }
-            };
+            // FORMATO ULTRA-SIMPLES que SEMPRE funciona
+            const simpleMenuMessage = `🤖 *INFORMAÇÕES DO BOT*
 
-            console.log('🚀 Tentando enviar Interactive Message moderno...');
-            
-            try {
-                const result = await this.sock.sendMessage(userNumber, modernButtonMessage);
-                console.log('✅ Interactive Message enviado!');
-                console.log('📋 Resultado:', JSON.stringify(result, null, 2));
-                
-                // Verifica se realmente enviou interactive message
-                if (result.message && result.message.interactiveMessage) {
-                    console.log('🎉 INTERACTIVE MESSAGE FUNCIONOU! interactiveMessage detectado');
-                    return; // Sucesso - não precisa fallback
-                } else if (result.message && result.message.extendedTextMessage) {
-                    console.log('⚠️ Apenas texto enviado, tentando formato legado...');
-                    throw new Error('Interactive Message convertido para texto');
-                }
-                
-            } catch (modernError) {
-                console.log('❌ Interactive Message falhou, tentando formato legado...');
-                
-                // FALLBACK 1: Botões tradicionais
-                const buttonMessage = {
-                    text: `🤖 *INFORMAÇÕES DO BOT*
+📋 **Selecione uma opção clicando no número:**
 
-Selecione uma das opções abaixo:`,
-                    footer: '🔧 Bot de Atendimento WhatsApp',
-                    buttons: [
-                        {
-                            buttonId: 'bot_versao',
-                            buttonText: { displayText: '🤖 Versão' },
-                            type: 1
-                        },
-                        {
-                            buttonId: 'bot_recursos', 
-                            buttonText: { displayText: '⚙️ Recursos' },
-                            type: 1
-                        },
-                        {
-                            buttonId: 'bot_comandos',
-                            buttonText: { displayText: '📜 Comandos' },
-                            type: 1
-                        }
-                    ],
-                    headerType: 1
-                };
+🔘 *1️⃣ Versão do Bot*
+   _Informações de versão e atualizações_
 
-                try {
-                    const legacyResult = await this.sock.sendMessage(userNumber, buttonMessage);
-                    console.log('✅ Botões legados enviados:', JSON.stringify(legacyResult.message, null, 2));
-                    
-                    if (legacyResult.message && legacyResult.message.buttonsMessage) {
-                        console.log('🎉 BOTÕES LEGADOS FUNCIONARAM!');
-                        return;
-                    } else {
-                        throw new Error('Botões legados convertidos para texto');
-                    }
-                } catch (legacyError) {
-                    console.log('❌ Botões legados falharam, usando Lista Interativa...');
-                
-                // Lista interativa como alternativa
-                const listMessage = {
-                    text: `🤖 *INFORMAÇÕES DO BOT*
+🔘 *2️⃣ Recursos Disponíveis* 
+   _Lista completa de funcionalidades_
 
-Selecione uma das opções:`,
-                    footer: '🔧 Bot de Atendimento WhatsApp',
-                    title: 'Menu de Informações',
-                    buttonText: 'Ver Opções',
-                    sections: [
-                        {
-                            title: 'Informações Disponíveis',
-                            rows: [
-                                {
-                                    id: 'bot_versao',
-                                    title: '🤖 Versão do Bot',
-                                    description: 'Informações de versão e atualizações'
-                                },
-                                {
-                                    id: 'bot_recursos',
-                                    title: '⚙️ Recursos',
-                                    description: 'Lista completa de funcionalidades'
-                                },
-                                {
-                                    id: 'bot_comandos',
-                                    title: '📜 Comandos',
-                                    description: 'Guia de todos os comandos'
-                                },
-                                {
-                                    id: 'bot_suporte',
-                                    title: '🆘 Suporte Técnico',
-                                    description: 'Ajuda e troubleshooting'
-                                },
-                                {
-                                    id: 'bot_sobre',
-                                    title: 'ℹ️ Sobre o Sistema',
-                                    description: 'Missão e características'
-                                }
-                            ]
-                        }
-                    ]
-                };
-                
-                const listResult = await this.sock.sendMessage(userNumber, listMessage);
-                console.log('✅ Lista interativa enviada!');
-                console.log('📋 Resultado Lista:', JSON.stringify(listResult, null, 2));
-                }
-            }
+🔘 *3️⃣ Comandos do Sistema*
+   _Guia de todos os comandos disponíveis_
+
+🔘 *4️⃣ Suporte Técnico*
+   _Ajuda e troubleshooting_
+
+🔘 *5️⃣ Sobre o Sistema*
+   _Missão e características do bot_
+
+───────────────────────
+💡 *Digite ou clique no número desejado (1-5)*
+🔄 *Digite "menu" para voltar ao menu principal*`;
+
+            await this.sock.sendMessage(userNumber, { text: simpleMenuMessage });
+            console.log('✅ Menu de informações ultra-simples enviado (SEMPRE funciona)');
 
         } catch (error) {
             console.error('❌ Erro ao enviar menu Info Bot:', error);
             
-            // Fallback final - menu numerado
+            // Fallback final - versão ainda mais simples
             const fallbackMessage = `🤖 *INFORMAÇÕES DO BOT*
 
-📋 **Selecione uma opção:**
+1 - Versão
+2 - Recursos  
+3 - Comandos
+4 - Suporte
+5 - Sobre
 
-*1️⃣ Versão do Bot* 
-*2️⃣ Recursos*
-*3️⃣ Comandos*
-*4️⃣ Suporte Técnico* 
-*5️⃣ Sobre o Sistema*
-
-💡 _Digite o número da opção (1-5)_`;
+Digite o número:`;
 
             await this.sock.sendMessage(userNumber, { text: fallbackMessage });
-            console.log('✅ Fallback numerado enviado');
+            console.log('✅ Fallback ultra-básico enviado');
         }
     }
 
@@ -1202,6 +1086,127 @@ Fornecer atendimento automatizado inteligente e eficiente via WhatsApp.
          } catch (error) {
              console.error('❌ Erro no teste moderno:', error);
              await this.sock.sendMessage(userNumber, { text: '❌ Erro no teste moderno: ' + error.message });
+         }
+     }
+
+     /**
+     * Testa formatos ultra-simples que funcionam garantidamente
+     * @param {string} userNumber - Número do usuário
+     */
+     async testSimpleFormats(userNumber) {
+         try {
+             console.log('✨ Testando formatos ULTRA-SIMPLES garantidos...');
+             
+             // FORMATO ULTRA-SIMPLES 1: Apenas texto com emojis clicáveis
+             await this.sock.sendMessage(userNumber, { text: '✨ Testando Formato Ultra-Simples 1...' });
+             await new Promise(resolve => setTimeout(resolve, 1000));
+             
+             const simpleText = `✨ *TESTE ULTRA-SIMPLES 1*
+
+🤖 Digite: *1* - Versão
+⚙️ Digite: *2* - Recursos  
+📜 Digite: *3* - Comandos
+
+💡 _Clique nos números ou digite normalmente_`;
+
+             await this.sock.sendMessage(userNumber, { text: simpleText });
+             console.log('✅ Formato Ultra-Simples 1 (texto puro) enviado');
+             
+             await new Promise(resolve => setTimeout(resolve, 2000));
+
+             // FORMATO ULTRA-SIMPLES 2: Texto com caracteres especiais
+             await this.sock.sendMessage(userNumber, { text: '✨ Testando Formato Ultra-Simples 2...' });
+             await new Promise(resolve => setTimeout(resolve, 1000));
+             
+             const emojiText = `✨ *TESTE ULTRA-SIMPLES 2*
+
+🔘 *1️⃣ VERSÃO*
+🔘 *2️⃣ RECURSOS*  
+🔘 *3️⃣ COMANDOS*
+
+_Responda com o número_`;
+
+             await this.sock.sendMessage(userNumber, { text: emojiText });
+             console.log('✅ Formato Ultra-Simples 2 (emojis) enviado');
+             
+             await new Promise(resolve => setTimeout(resolve, 2000));
+
+             // FORMATO ULTRA-SIMPLES 3: Poll/Enquete (funciona em algumas versões)
+             await this.sock.sendMessage(userNumber, { text: '✨ Testando Formato Ultra-Simples 3...' });
+             await new Promise(resolve => setTimeout(resolve, 1000));
+             
+             try {
+                 const pollMessage = {
+                     poll: {
+                         name: "✨ TESTE ULTRA-SIMPLES 3",
+                         values: [
+                             "🤖 Versão do Bot",
+                             "⚙️ Recursos",
+                             "📜 Comandos"
+                         ],
+                         selectableCount: 1
+                     }
+                 };
+                 
+                 const pollResult = await this.sock.sendMessage(userNumber, pollMessage);
+                 console.log('✅ Poll enviado:', JSON.stringify(pollResult.message, null, 2));
+                 
+                 if (pollResult.message.pollCreationMessage) {
+                     await this.sock.sendMessage(userNumber, { text: '🎉 POLL FUNCIONOU! Enquete detectada.' });
+                 } else {
+                     await this.sock.sendMessage(userNumber, { text: '❌ Poll falhou - apenas texto.' });
+                 }
+             } catch (pollError) {
+                 console.log('❌ Poll erro:', pollError.message);
+                 await this.sock.sendMessage(userNumber, { text: `❌ Poll erro: ${pollError.message}` });
+             }
+
+             await new Promise(resolve => setTimeout(resolve, 2000));
+
+             // FORMATO ULTRA-SIMPLES 4: Mensagem de contato (às vezes funciona como botão)
+             await this.sock.sendMessage(userNumber, { text: '✨ Testando Formato Ultra-Simples 4...' });
+             await new Promise(resolve => setTimeout(resolve, 1000));
+             
+             try {
+                 const contactMessage = {
+                     contacts: {
+                         displayName: "✨ Menu de Opções",
+                         contacts: [{
+                             displayName: "🤖 Informações do Bot",
+                             vcard: `BEGIN:VCARD
+VERSION:3.0
+FN:🤖 Informações do Bot
+ORG:Bot de Atendimento
+TEL;type=WORK:+55 41 9999-9999
+EMAIL:bot@atendimento.com
+NOTE:Menu de opções do bot - Digite 1, 2 ou 3
+END:VCARD`
+                         }]
+                     }
+                 };
+                 
+                 const contactResult = await this.sock.sendMessage(userNumber, contactMessage);
+                 console.log('✅ Contact enviado:', JSON.stringify(contactResult.message, null, 2));
+                 
+                 if (contactResult.message.contactMessage) {
+                     await this.sock.sendMessage(userNumber, { text: '🎉 CONTACT FUNCIONOU! Contato detectado.' });
+                 } else {
+                     await this.sock.sendMessage(userNumber, { text: '❌ Contact falhou - apenas texto.' });
+                 }
+             } catch (contactError) {
+                 console.log('❌ Contact erro:', contactError.message);
+                 await this.sock.sendMessage(userNumber, { text: `❌ Contact erro: ${contactError.message}` });
+             }
+             
+             await new Promise(resolve => setTimeout(resolve, 2000));
+             
+             await this.sock.sendMessage(userNumber, { 
+                 text: '✨ *TESTE ULTRA-SIMPLES CONCLUÍDO*\n\nTodos os formatos foram testados.\n\n💡 O formato de texto puro SEMPRE funciona.\n\n🎯 Vamos usar o formato mais simples e eficiente!' 
+             });
+
+         } catch (error) {
+             console.error('❌ Erro no teste ultra-simples:', error);
+             await this.sock.sendMessage(userNumber, { text: '❌ Erro no teste ultra-simples: ' + error.message });
          }
      }
 }
