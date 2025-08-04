@@ -4,7 +4,6 @@ const { DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets
 const qrcode = require('qrcode-terminal');
 const P = require('pino');
 
-// Importar módulos personalizados
 const MessageHandler = require('./handlers/messageHandler');
 const AuthManager    = require('./session/auth');
 const InputManager   = require('./utils/inputManager');
@@ -55,13 +54,92 @@ class WhatsAppBot {
         printQRInTerminal: false,
         browser: ['Bot Atendimento', 'Chrome', '2.1.0'],
         generateHighQualityLinkPreview: true,
-        defaultQueryTimeoutMs: 60_000,
+        defaultQueryTimeoutMs: 60000,
         markOnlineOnConnect: true
       };
 
       if (this.authManager.getConnectionMethod() === 'code' && this.authManager.getPhoneNumber()) {
         socketOptions.mobile = false;
         socketOptions.syncFullHistory = false;
+        console.log('🔧 Configurando pareamento por código...');
+      }
+
+      this.sock           = makeWASocket(socketOptions);
+      this.messageHandler = new MessageHandler(this.sock);
+
+      this.sock.ev.on('creds.update', saveCreds);
+      this.setupEventHandlers();
+
+    } catch (err) {
+      console.error('❌ Erro ao conectar:', err);
+      throw err;
+    }
+  }
+
+  setupEventHandlers() {
+    this.sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      console.log(`🔄 Conexão: ${connection || 'connecting'}`);
+
+      if (qr && !this.pairingAttempted) {
+        this.displayQR(qr);
+        this.pairingAttempted = false;
+      }
+
+      if (connection === 'close') {
+        await this.handleDisconnection(lastDisconnect);
+      }
+
+      if (connection === 'open') {
+        console.log('✅ Conectado!');
+        this.isConnected = true;
+      }
+    });
+
+    this.sock.ev.on('messages.upsert', async m => {
+      if (m.type === 'notify') {
+        for (const msg of m.messages) {
+          if (!msg.key.fromMe && msg.message) {
+            await this.messageHandler.handleMessage(msg);
+          }
+        }
+      }
+    });
+  }
+
+  displayQR(qr) {
+    console.log('\n┌────────── ESCANEIE O QR ──────────┐\n');
+    qrcode.generate(qr, { small: true });
+  }
+
+  async handleDisconnection(lastDisconnect) {
+    const code = lastDisconnect?.error?.output?.statusCode;
+    const shouldReconnect = code !== DisconnectReason.loggedOut;
+
+    if (shouldReconnect) {
+      console.log('🔄 Tentando reconectar em 5s...');
+      setTimeout(() => this.connect(), 5000);
+    } else {
+      console.log('❌ Desconectado permanentemente.');
+      process.exit(0);
+    }
+  }
+
+  async stop() {
+    console.log('🛑 Parando bot...');
+    this.inputManager.closeInterface();
+    if (this.sock) {
+      await this.sock.logout();
+    }
+    console.log('✅ Bot parado.');
+    process.exit(0);
+  }
+}
+
+const bot = new WhatsAppBot();
+process.on('SIGINT',  () => bot.stop());
+process.on('SIGTERM', () => bot.stop());
+bot.start().catch(console.error);        socketOptions.syncFullHistory = false;
         console.log('🔧 Configurando conexão para pareamento por código...');
       }
 
